@@ -1,0 +1,87 @@
+NetPulse — Проприетарная лицензия (Source-Available, только для чтения)
+NetPulse — Proprietary License (Source-Available, read-only)
+
+Copyright (c) 2026 StaileGroW. Все права защищены. / All rights reserved.
+
+======================================================================
+РУССКИЙ
+======================================================================
+
+1. Исходный код, скомпилированные сборки, графика, логотипы, названия,
+   визуальный стиль и элементы интерфейса (далее — «Продукт») являются
+   объектами авторского права StaileGroW.
+
+2. Исходный код опубликован исключительно для ознакомления (просмотра).
+   Публикация кода не является предоставлением какой-либо лицензии или
+   права на использование, кроме права просматривать его на сайте GitHub.
+
+3. Без предварительного письменного разрешения правообладателя ЗАПРЕЩЕНО:
+   а) копировать, воспроизводить и распространять Продукт или его части;
+   б) изменять Продукт, создавать производные работы, форки для
+      использования, переименованные или ребрендированные версии;
+   в) компилировать, собирать и распространять сборки из этого кода;
+   г) декомпилировать, дизассемблировать, извлекать ресурсы, применять
+      иные методы обратной разработки к сборкам Продукта (в том числе APK
+      и .app), а также изменять и переподписывать их;
+   д) копировать или имитировать визуальный стиль Продукта: кнопки,
+      анимации, фон, компоновку экранов, цветовые темы, логотипы и
+      названия, создавать визуальные клоны;
+   е) использовать Продукт или его части для обучения, продажи, сдачи в
+      аренду, сублицензирования или в составе других продуктов.
+
+4. Продукт предоставляется «как есть», без каких-либо гарантий.
+   Правообладатель не несёт ответственности за любой ущерб, возникший в
+   связи с использованием Продукта.
+
+5. Условия использования готового приложения конечными пользователями
+   изложены в файле EULA.md.
+
+6. Сторонние компоненты распространяются на условиях своих собственных
+   лицензий и не подпадают под действие этого документа (см. раздел
+   «Сторонние компоненты» ниже).
+
+7. По вопросам лицензирования обращайтесь к правообладателю через
+   GitHub: https://github.com/stailegrow
+
+======================================================================
+ENGLISH
+======================================================================
+
+1. The source code, compiled builds, graphics, logos, names, visual style
+   and user interface elements (the "Product") are copyrighted works of
+   StaileGroW.
+
+2. The source code is published for viewing only. Publication does not
+   grant any licence or right of use other than viewing it on GitHub.
+
+3. Without the copyright holder's prior written permission you may NOT:
+   a) copy, reproduce or distribute the Product or any part of it;
+   b) modify the Product, create derivative works, forks for use, renamed
+      or rebranded versions;
+   c) compile, build or distribute builds made from this code;
+   d) decompile, disassemble, extract resources from, or otherwise reverse
+      engineer builds of the Product (including APK and .app), or modify
+      and re-sign them;
+   e) copy or imitate the Product's visual style — buttons, animations,
+      backgrounds, screen layouts, colour themes, logos and names — or
+      create visual clones;
+   f) use the Product or any part of it for training, sale, rental,
+      sublicensing, or as part of other products.
+
+4. THE PRODUCT IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. The
+   copyright holder is not liable for any damage arising from its use.
+
+5. Terms for end users of the finished application are set out in EULA.md.
+
+6. Third-party components are governed by their own licences and are not
+   covered by this document (see "Third-party components" below).
+
+7. Licensing enquiries: https://github.com/stailegrow
+
+======================================================================
+Сторонние компоненты / Third-party components
+======================================================================
+
+- Сторонние зависимости (Tauri, крейты Rust, пакеты npm) — каждая под своей лицензией, указанной в её пакете.
+
+- Third-party dependencies (Tauri, Rust crates, npm packages) — each under the licence stated in its own package.

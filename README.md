@@ -116,3 +116,15 @@ cargo run -p netpulse-core --example engine               # сквозной п�
 - `⌘N` / `Ctrl+N` — новая цель
 - `⌘,` / `Ctrl+,` — настройки
 - `Esc` — назад к списку
+
+## Лицензия
+
+Проприетарная лицензия, все права защищены — см. [LICENSE](LICENSE).
+Код открыт **только для чтения**: копирование, изменение, сборка,
+распространение, декомпиляция и копирование дизайна запрещены. Условия для
+пользователей приложения — в [EULA.md](EULA.md).
+
+Сторонние компоненты распространяются под собственными лицензиями (список —
+в конце файла [LICENSE](LICENSE)).
+
+**Licence** — proprietary, all rights reserved (source-available, read-only). See [LICENSE](LICENSE) and [EULA.md](EULA.md); third-party components keep their own licences.
