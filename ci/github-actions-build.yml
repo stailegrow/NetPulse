@@ -1,0 +1,69 @@
+name: Build NetPulse
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p netpulse-icmp -p netpulse-core
+
+  build:
+    needs: test-core
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (Apple Silicon + Intel)
+            os: macos-latest
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            args: --target universal-apple-darwin
+            artifact: NetPulse-macOS
+            paths: |
+              target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          - name: Windows x64
+            os: windows-latest
+            rust_targets: x86_64-pc-windows-msvc
+            args: ""
+            artifact: NetPulse-Windows
+            paths: |
+              target/release/bundle/nsis/*.exe
+              target/release/bundle/msi/*.msi
+              target/release/netpulse.exe
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Install frontend deps
+        working-directory: app
+        run: npm ci
+      - name: Build app
+        working-directory: app
+        run: npm run tauri build -- ${{ matrix.args }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.paths }}
+          if-no-files-found: error
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.paths }}

@@ -1,0 +1,23 @@
+{
+  "version": "1.1.0",
+  "notes": "NetPulse 1.1.0",
+  "pub_date": "2026-09-25T17:15:59.342Z",
+  "platforms": {
+    "darwin-aarch64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRZGZhNFd0N1ViS29kZmdzaVNhVFg0NjRmYWM5Tk50KytxU2hySzA0b3NOQjE1N1o0VkViTzkyLzZKeUttaitIWmlUaURTVTN2KzNpMUxSZ3pDQy9GdkFPbDFMU1VsYVE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzU2NTQzCWZpbGU6TmV0UHVsc2UuYXBwLnRhci5negp1dktGWEJtajQzWnJMeHdvWFZVZS9ENEIwTkFmNmU5Q1dNS1lmRVQ5WlBwSkxKRGUyWGFLRHlXM1FhVGVQUDQ5cWZablFHUVE1ajI0R01uV25uVVlDZz09Cg==",
+      "url": "https://github.com/stailegrow/NetPulse/releases/download/v1.1.0/NetPulse_1.1.0_universal.app.tar.gz"
+    },
+    "darwin-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRZGZhNFd0N1ViS29kZmdzaVNhVFg0NjRmYWM5Tk50KytxU2hySzA0b3NOQjE1N1o0VkViTzkyLzZKeUttaitIWmlUaURTVTN2KzNpMUxSZ3pDQy9GdkFPbDFMU1VsYVE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzU2NTQzCWZpbGU6TmV0UHVsc2UuYXBwLnRhci5negp1dktGWEJtajQzWnJMeHdvWFZVZS9ENEIwTkFmNmU5Q1dNS1lmRVQ5WlBwSkxKRGUyWGFLRHlXM1FhVGVQUDQ5cWZablFHUVE1ajI0R01uV25uVVlDZz09Cg==",
+      "url": "https://github.com/stailegrow/NetPulse/releases/download/v1.1.0/NetPulse_1.1.0_universal.app.tar.gz"
+    },
+    "darwin-universal": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRZGZhNFd0N1ViS29kZmdzaVNhVFg0NjRmYWM5Tk50KytxU2hySzA0b3NOQjE1N1o0VkViTzkyLzZKeUttaitIWmlUaURTVTN2KzNpMUxSZ3pDQy9GdkFPbDFMU1VsYVE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzU2NTQzCWZpbGU6TmV0UHVsc2UuYXBwLnRhci5negp1dktGWEJtajQzWnJMeHdvWFZVZS9ENEIwTkFmNmU5Q1dNS1lmRVQ5WlBwSkxKRGUyWGFLRHlXM1FhVGVQUDQ5cWZablFHUVE1ajI0R01uV25uVVlDZz09Cg==",
+      "url": "https://github.com/stailegrow/NetPulse/releases/download/v1.1.0/NetPulse_1.1.0_universal.app.tar.gz"
+    },
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRZGZhNFd0N1ViS2kyeGNVZDZhSFVpajJGRThCU2gwMXZCbGRDSmgrVG9TL2Z6TVRHQWRPRUdLTUh4cVFmVTk3RUVLU3ZKWUI2NEpyM3k2V3VEM0lLeDNCMm83ZjhzemdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzU2NTQ5CWZpbGU6TmV0UHVsc2VfMS4xLjBfeDY0LXNldHVwLmV4ZQpLbk1XQWxKclQ4K0Jpa05oL2tnbkNVUk9KaWNQQytXU2tYdkdmUFBXZlFxZmZCOVdrZ093aEh3YnVOVVNCUVM2RkZNTUhYQ2QvYWhuenBVcS9zY1FBdz09Cg==",
+      "url": "https://github.com/stailegrow/NetPulse/releases/download/v1.1.0/NetPulse_1.1.0_x64-setup.exe"
+    }
+  }
+}

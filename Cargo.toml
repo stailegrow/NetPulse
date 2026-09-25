@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = ["crates/netpulse-icmp", "crates/netpulse-core", "app/src-tauri"]
+
+[workspace.package]
+version = "1.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Sorokin Maksim"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
