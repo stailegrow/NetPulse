@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Thresholds, TimelinePoint } from "../types";
 import { fmtDateTime, fmtMs, fmtPct, fmtTime } from "../format";
+import { cv, rgbaVar } from "../theme";
 
 interface Props {
   points: TimelinePoint[];
@@ -102,15 +103,16 @@ export function Timeline({ points, from, to, th, height = 190, focus, onFocus, c
       g.fillRect(PAD.l, yOf(Math.min(b, yMax)), plotW, yOf(a) - yOf(Math.min(b, yMax)));
     };
     const css = getComputedStyle(document.documentElement);
-    zone(0, th.warnMs, css.getPropertyValue("--zone-ok"));
-    zone(th.warnMs, th.badMs, css.getPropertyValue("--zone-warn"));
-    zone(th.badMs, th.critMs, css.getPropertyValue("--zone-orange"));
-    zone(th.critMs, yMax, css.getPropertyValue("--zone-bad"));
+    const lineRgba = (a: number) => { const c = cv("--chart-line"); const n = parseInt(c.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };
+    zone(0, th.warnMs, cv("--zone-ok"));
+    zone(th.warnMs, th.badMs, cv("--zone-warn"));
+    zone(th.badMs, th.critMs, cv("--zone-orange"));
+    zone(th.critMs, yMax, cv("--zone-bad"));
 
     // Сетка и подписи
     g.font = (compact ? "9.5px " : "10.5px ") + css.getPropertyValue("--mono");
     g.textBaseline = "middle";
-    g.strokeStyle = "rgba(255,255,255,0.05)";
+    g.strokeStyle = rgbaVar("--fg-rgb", 0.06);
     g.lineWidth = 1;
     const rows = compact ? 2 : 4;
     for (let i = 0; i <= rows; i++) {
@@ -120,16 +122,16 @@ export function Timeline({ points, from, to, th, height = 190, focus, onFocus, c
       g.beginPath(); g.moveTo(PAD.l, y); g.lineTo(PAD.l + plotW, y); g.stroke();
       // Верхняя подпись иначе обрезается краем канвы.
       const ty = Math.max(y, PAD.t + 5);
-      g.fillStyle = "#6c7682"; g.textAlign = "right";
+      g.fillStyle = cv("--chart-axis"); g.textAlign = "right";
       g.fillText(v >= 10 ? String(Math.round(v)) : String(Math.round(v * 10) / 10), PAD.l - 6, ty);
-      g.textAlign = "left"; g.fillStyle = "rgba(255,77,94,0.6)";
+      g.textAlign = "left"; g.fillStyle = rgbaVar("--down-rgb", 0.6);
       g.fillText(`${Math.round((LOSS_MAX / rows) * i)}%`, PAD.l + plotW + 6, ty);
     }
     const { ticks, step } = timeTicks(from, to, plotW);
-    g.textAlign = "center"; g.textBaseline = "top"; g.fillStyle = "#6c7682";
+    g.textAlign = "center"; g.textBaseline = "top"; g.fillStyle = cv("--chart-axis");
     for (const t of ticks) {
       const x = Math.round(xOf(t)) + 0.5;
-      g.strokeStyle = "rgba(255,255,255,0.04)";
+      g.strokeStyle = rgbaVar("--fg-rgb", 0.045);
       g.beginPath(); g.moveTo(x, PAD.t); g.lineTo(x, PAD.t + plotH); g.stroke();
       g.fillText(label(t, step), x, PAD.t + plotH + (compact ? 3 : 6));
     }
@@ -141,12 +143,12 @@ export function Timeline({ points, from, to, th, height = 190, focus, onFocus, c
       if (p.lossPct <= 0) continue;
       const x = xOf(p.ts);
       const h = (Math.min(p.lossPct, LOSS_MAX) / LOSS_MAX) * plotH;
-      g.fillStyle = p.lossPct >= 100 ? "rgba(255,50,70,0.95)" : "rgba(255,77,94,0.8)";
+      g.fillStyle = p.lossPct >= 100 ? rgbaVar("--down-rgb", 0.95) : rgbaVar("--down-rgb", 0.75);
       g.fillRect(x, PAD.t + plotH - h, Math.max(1.5, bucketW), h);
     }
 
     // Полоса min–max — разброс задержки вокруг средней.
-    g.fillStyle = "rgba(53,224,138,0.16)";
+    g.fillStyle = lineRgba(0.16);
     for (const p of points) {
       if (p.min == null || p.max == null) continue;
       const x = xOf(p.ts);
@@ -173,8 +175,8 @@ export function Timeline({ points, from, to, th, height = 190, focus, onFocus, c
       if (r.length < 2) continue;
       const top = Math.min(...r.map((q) => q[1]));
       const grad = g.createLinearGradient(0, top, 0, bottom);
-      grad.addColorStop(0, "rgba(53,224,138,0.26)");
-      grad.addColorStop(1, "rgba(53,224,138,0.03)");
+      grad.addColorStop(0, lineRgba(0.26));
+      grad.addColorStop(1, lineRgba(0.03));
       g.fillStyle = grad;
       g.beginPath();
       g.moveTo(r[0][0], bottom);
@@ -199,11 +201,11 @@ export function Timeline({ points, from, to, th, height = 190, focus, onFocus, c
       }
     };
     // Тёмная подложка отделяет линию от цветных зон и сетки.
-    stroke("rgba(8,11,14,0.55)", lw + 2);
-    stroke(css.getPropertyValue("--ok").trim() || "#35e08a", lw);
+    stroke(cv("--chart-under"), lw + 2);
+    stroke(cv("--chart-line"), lw);
 
     // Одиночные точки между разрывами иначе не рисуются вовсе.
-    g.fillStyle = css.getPropertyValue("--ok").trim() || "#35e08a";
+    g.fillStyle = cv("--chart-line");
     for (const r of runs) {
       if (r.length !== 1) continue;
       g.beginPath();
@@ -216,18 +218,18 @@ export function Timeline({ points, from, to, th, height = 190, focus, onFocus, c
       if (p.avg == null || p.avg > yMax) continue;
       const c = p.avg >= th.critMs ? "--down" : p.avg >= th.badMs ? "--bad" : p.avg >= th.warnMs ? "--warn" : null;
       if (!c) continue;
-      g.fillStyle = css.getPropertyValue(c).trim();
+      g.fillStyle = cv(c);
       g.beginPath();
       g.arc(xOf(p.ts) + bucketW / 2, yOf(p.avg), lw + 0.3, 0, Math.PI * 2);
       g.fill();
     }
 
     // Превышение шкалы
-    g.fillStyle = "#ff9147";
+    g.fillStyle = cv("--bad");
     for (const p of points) if (p.avg != null && p.avg > yMax) g.fillRect(xOf(p.ts), PAD.t, Math.max(2, bucketW), 3);
 
     // Рамка
-    g.strokeStyle = "#1b2128";
+    g.strokeStyle = cv("--chart-frame");
     g.lineWidth = 1;
     g.strokeRect(PAD.l + 0.5, PAD.t + 0.5, plotW - 1, plotH - 1);
   }, [points, from, to, width, height, yMax, th.warnMs, th.badMs, th.critMs, compact]);
@@ -280,17 +282,17 @@ export function Timeline({ points, from, to, th, height = 190, focus, onFocus, c
         <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "var(--muted)", fontSize: 12.5, pointerEvents: "none" }}>Нет данных за выбранный период</div>
       )}
       {focusBox && (
-        <div style={{ position: "absolute", top: PAD.t, height: plotH, left: focusBox.left, width: Math.max(2, focusBox.right - focusBox.left), background: "rgba(90,169,255,0.12)", borderLeft: "1px solid rgba(90,169,255,.7)", borderRight: "1px solid rgba(90,169,255,.7)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: PAD.t, height: plotH, left: focusBox.left, width: Math.max(2, focusBox.right - focusBox.left), background: "rgba(var(--info-rgb),0.12)", borderLeft: "1px solid rgba(var(--info-rgb),.7)", borderRight: "1px solid rgba(var(--info-rgb),.7)", pointerEvents: "none" }} />
       )}
       {drag && (
-        <div style={{ position: "absolute", top: PAD.t, height: plotH, left: Math.min(...drag), width: Math.abs(drag[1] - drag[0]), background: "rgba(53,224,138,0.14)", border: "1px dashed rgba(53,224,138,.6)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: PAD.t, height: plotH, left: Math.min(...drag), width: Math.abs(drag[1] - drag[0]), background: "rgba(var(--accent-rgb),0.14)", border: "1px dashed rgba(var(--accent-rgb),.6)", pointerEvents: "none" }} />
       )}
       {!hover && syncTs != null && syncTs >= from && syncTs <= to && (
-        <div style={{ position: "absolute", top: PAD.t, height: plotH, left: xOf(syncTs), width: 1, background: "rgba(255,255,255,.28)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: PAD.t, height: plotH, left: xOf(syncTs), width: 1, background: "rgba(var(--fg-rgb),.28)", pointerEvents: "none" }} />
       )}
       {hover && !drag && (
         <>
-          <div style={{ position: "absolute", top: PAD.t, height: plotH, left: hover.x, width: 1, background: "rgba(255,255,255,.35)", pointerEvents: "none" }} />
+          <div style={{ position: "absolute", top: PAD.t, height: plotH, left: hover.x, width: 1, background: "rgba(var(--fg-rgb),.35)", pointerEvents: "none" }} />
           {compact ? (
             <div className="chart-tip" style={{ top: -2, padding: "3px 8px", left: hover.x > width - 260 ? hover.x - 250 : hover.x + 10 }}>
               <span className="c-muted">{fmtTime(hover.p.ts)}</span>{" · "}

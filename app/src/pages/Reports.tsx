@@ -5,6 +5,7 @@ import type { ReportRow } from "../types";
 import { KIND_LABEL } from "../types";
 import { fmtMs, fmtPct } from "../format";
 import { Icon } from "../components/ui";
+import { ReportDashboard } from "../components/ReportDashboard";
 
 type PeriodKey = "24h" | "7d" | "30d" | "month" | "prev";
 const PERIODS: { k: PeriodKey; l: string }[] = [
@@ -44,6 +45,8 @@ export function Reports({ onOpen, toast }: { onOpen: (id: string, at?: number) =
   const [rows, setRows] = useState<ReportRow[] | null>(null);
   const [group, setGroup] = useState<string | null>(null);
   const [sort, setSort] = useState<{ k: SortKey; asc: boolean }>({ k: "uptime", asc: true });
+  const [pageSize, setPageSize] = useState<number>(() => { try { return Number(localStorage.getItem("np.repPage")) || 10; } catch { return 10; } });
+  const [pageNo, setPageNo] = useState(0);
   const [from, to] = useMemo(() => periodRange(period), [period]);
 
   useEffect(() => {
@@ -70,6 +73,11 @@ export function Reports({ onOpen, toast }: { onOpen: (id: string, at?: number) =
     });
   }, [rows, group, sort]);
 
+  useEffect(() => setPageNo(0), [group, sort, from, to, pageSize]);
+  const pages = pageSize > 0 ? Math.max(1, Math.ceil(visible.length / pageSize)) : 1;
+  const cur = Math.min(pageNo, pages - 1);
+  const pageRows = pageSize > 0 ? visible.slice(cur * pageSize, cur * pageSize + pageSize) : visible;
+
   // Итоги по группам (аптайм взвешен по числу проверок).
   const byGroup = useMemo(() => {
     const m = new Map<string, { checks: number; lost: number; outages: number; downtime: number; n: number }>();
@@ -80,18 +88,6 @@ export function Reports({ onOpen, toast }: { onOpen: (id: string, at?: number) =
     }
     return [...m.entries()].map(([name, g]) => ({ name, ...g, uptime: g.checks ? 100 - (g.lost * 100) / g.checks : null }));
   }, [rows]);
-
-  const total = useMemo(() => {
-    const list = visible;
-    const checks = list.reduce((a, r) => a + r.checks, 0);
-    const lost = list.reduce((a, r) => a + r.lost, 0);
-    return {
-      uptime: checks ? 100 - (lost * 100) / checks : null,
-      outages: list.reduce((a, r) => a + r.outages, 0),
-      downtime: list.reduce((a, r) => a + r.downtimeMs, 0),
-      worst: list.filter((r) => r.uptimePct != null).sort((a, b) => (a.uptimePct ?? 0) - (b.uptimePct ?? 0))[0],
-    };
-  }, [visible]);
 
   const th = (k: SortKey, label: string, right = true) => (
     <th className={right ? "r" : ""} style={{ cursor: "pointer" }} onClick={() => setSort((s) => ({ k, asc: s.k === k ? !s.asc : k === "uptime" || k === "name" }))}>
@@ -121,24 +117,11 @@ export function Reports({ onOpen, toast }: { onOpen: (id: string, at?: number) =
         <button className="btn" onClick={exportFile} disabled={!rows?.length}><Icon name="download" size={13} />{t("Экспорт в CSV")}</button>
       </div>
 
-      <div className="stats-row">
-        <div className="stat-card" style={{ cursor: "default" }}>
-          <div className={"v " + uptimeClass(total.uptime)}>{total.uptime == null ? "—" : `${total.uptime.toFixed(2)}%`}</div>
-          <div className="l">{t("Средний аптайм")}</div>
+      {rows && rows.length > 0 && (
+        <div className="page-pad" style={{ paddingBottom: 0 }}>
+          <ReportDashboard rows={rows} from={from} to={to} group={group} onGroup={setGroup} onOpen={onOpen} />
         </div>
-        <div className="stat-card" style={{ cursor: "default" }}>
-          <div className={"v " + (total.outages ? "c-down" : "")}>{total.outages}</div>
-          <div className="l">{t("Простоев")}</div>
-        </div>
-        <div className="stat-card" style={{ cursor: "default" }}>
-          <div className="v">{fmtDuration(total.downtime)}</div>
-          <div className="l">{t("Простой суммарно")}</div>
-        </div>
-        <div className="stat-card" style={{ cursor: total.worst ? "pointer" : "default", minWidth: 220 }} onClick={() => total.worst && onOpen(total.worst.id)}>
-          <div className={"v " + uptimeClass(total.worst?.uptimePct ?? null)} style={{ fontSize: 16, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 260 }}>{total.worst ? total.worst.name : "—"}</div>
-          <div className="l">Худшая цель{total.worst ? ` · ${total.worst.uptimePct?.toFixed(2)}%` : ""}</div>
-        </div>
-      </div>
+      )}
 
       <div className="page-pad" style={{ paddingTop: 0 }}>
         {byGroup.length > 1 && (
@@ -169,7 +152,7 @@ export function Reports({ onOpen, toast }: { onOpen: (id: string, at?: number) =
                   {th("uptime", "Аптайм")}
                   {th("outages", "Простои")}
                   {th("downtime", "Простой всего")}
-                  <th className="r" title={t("События «недоступен» и «был недоступен» (от 5 секунд)")}>{t("Инциденты")}</th>
+                  <th className="r" title={t("Сколько раз узел пропадал: события «недоступен» и «был недоступен» (от 5 секунд)")}>{t("Обрывы")}</th>
                   {th("loss", "Потери")}
                   {th("avg", "Средн., мс")}
                   <th className="r">{t("Макс., мс")}</th>
@@ -177,7 +160,7 @@ export function Reports({ onOpen, toast }: { onOpen: (id: string, at?: number) =
                 </tr>
               </thead>
               <tbody>
-                {visible.map((r) => (
+                {pageRows.map((r) => (
                   <tr key={r.id} onClick={() => onOpen(r.id)}>
                     <td style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis" }}>
                       {r.name} <span className="kind" style={{ marginLeft: 4 }}>{r.kind ? KIND_LABEL[r.kind] : ""}</span>
@@ -199,6 +182,9 @@ export function Reports({ onOpen, toast }: { onOpen: (id: string, at?: number) =
                 ))}
               </tbody>
             </table>
+            <Pager total={visible.length} page={cur} pages={pages} size={pageSize}
+              onPage={setPageNo}
+              onSize={(n) => { setPageSize(n); try { localStorage.setItem("np.repPage", String(n)); } catch { /* */ } }} />
           </div>
         )}
         <div className="c-muted" style={{ fontSize: 11.5, marginTop: 10 }}>
@@ -207,5 +193,36 @@ export function Reports({ onOpen, toast }: { onOpen: (id: string, at?: number) =
         </div>
       </div>
     </>
+  );
+}
+
+/** Постраничный вывод: «1–10 из 139», страницы и размер страницы. */
+function Pager({ total, page, pages, size, onPage, onSize }: { total: number; page: number; pages: number; size: number; onPage: (p: number) => void; onSize: (n: number) => void }) {
+  const a = size > 0 ? page * size + 1 : 1;
+  const b = size > 0 ? Math.min(total, (page + 1) * size) : total;
+  // Номера страниц: первая, последняя и соседние с текущей.
+  const nums: (number | "…")[] = [];
+  for (let i = 0; i < pages; i++) {
+    if (i === 0 || i === pages - 1 || Math.abs(i - page) <= 1) nums.push(i);
+    else if (nums[nums.length - 1] !== "…") nums.push("…");
+  }
+  return (
+    <div className="pager">
+      <span className="c-muted num">{a}–{b} {t("из")} {total}</span>
+      {pages > 1 && (
+        <span className="pager-pages">
+          <button className="btn sm ghost" disabled={page === 0} onClick={() => onPage(page - 1)} aria-label={t("Назад")}>‹</button>
+          {nums.map((n, i) => n === "…" ? <span key={"e" + i} className="c-muted">…</span> : (
+            <button key={n} className={"btn sm" + (n === page ? " on" : " ghost")} onClick={() => onPage(n)}>{n + 1}</button>
+          ))}
+          <button className="btn sm ghost" disabled={page >= pages - 1} onClick={() => onPage(page + 1)} aria-label={t("Вперёд")}>›</button>
+        </span>
+      )}
+      <span style={{ flex: 1 }} />
+      <span className="c-muted">{t("Показывать по")}</span>
+      <div className="chips">
+        {[10, 25, 50, 0].map((n) => <button key={n} className={size === n ? "on" : ""} onClick={() => onSize(n)}>{n ? n : t("все")}</button>)}
+      </div>
+    </div>
   );
 }

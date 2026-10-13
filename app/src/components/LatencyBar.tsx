@@ -14,13 +14,13 @@ export function LatencyBar({ hop, th, scaleMax, prevAvg }: { hop: HopStats; th: 
         <div style={{ flex: 1, background: "var(--zone-bad)" }} />
       </div>
       {hop.lossPct > 0 && (
-        <div title={`Потери ${hop.lossPct.toFixed(1)}%`} style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${Math.min(100, hop.lossPct)}%`, background: "linear-gradient(90deg, rgba(255,77,94,.28), rgba(255,77,94,.08))" }} />
+        <div title={`Потери ${hop.lossPct.toFixed(1)}%`} style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${Math.min(100, hop.lossPct)}%`, background: "linear-gradient(90deg, rgba(var(--down-rgb),.28), rgba(var(--down-rgb),.08))" }} />
       )}
       {hop.min != null && hop.max != null && (
-        <div style={{ position: "absolute", top: 11, height: 2, left: pct(hop.min), width: `calc(${pct(hop.max)} - ${pct(hop.min)})`, background: "rgba(220,230,240,.35)" }} />
+        <div style={{ position: "absolute", top: 11, height: 2, left: pct(hop.min), width: `calc(${pct(hop.max)} - ${pct(hop.min)})`, background: "rgba(var(--fg-rgb),.3)" }} />
       )}
       {prevAvg != null && hop.avg != null && (
-        <div style={{ position: "absolute", top: 12, height: 0, left: pct(Math.min(prevAvg, hop.avg)), width: `calc(${pct(Math.max(prevAvg, hop.avg))} - ${pct(Math.min(prevAvg, hop.avg))})`, borderTop: "1px dashed rgba(233,238,243,.25)" }} />
+        <div style={{ position: "absolute", top: 12, height: 0, left: pct(Math.min(prevAvg, hop.avg)), width: `calc(${pct(Math.max(prevAvg, hop.avg))} - ${pct(Math.min(prevAvg, hop.avg))})`, borderTop: "1px dashed rgba(var(--fg-rgb),.25)" }} />
       )}
       {hop.avg != null && (
         <div style={{ position: "absolute", top: 7, width: 10, height: 10, marginLeft: -5, borderRadius: 5, left: pct(hop.avg), background: color, boxShadow: `0 0 8px ${color}` }} />

@@ -14,6 +14,102 @@ import type { Diagnosis, Finding,
   TraceView,
 } from "./types";
 import { defaultTarget, defaultTemplates } from "./types";
+import type { DowntimeProfile, Incident, IncidentPayload, Operator, TargetOperator, TicketDraft } from "./types";
+
+// ---------------------------------------------------------------- демо: операторы и инциденты
+let operators: Operator[] = [
+  {
+    id: "op-1", name: "Пример-Телеком", kind: "provider",
+    phones: [{ value: "8 800 000-00-00", label: "Техподдержка, круглосуточно" }, { value: "+7 495 000-00-01", label: "Персональный менеджер" }],
+    emails: [{ value: "noc@example.net", label: "Заявки" }], portal: "https://lk.example.net", telegram: "",
+    escalation: "Если нет ответа 30 минут — звонить менеджеру", contract: "15/2023-K", account: "7700125",
+    slaReactMin: 30, slaFixHours: 4, slaUptime: 99.9, domains: "example.net", notes: "Заявки принимают только с почты дежурных.",
+    services: [{ id: "svc-1", number: "IP-VPN 0471-22", address: "ул. Складская, 3", ips: "198.51.100.17/30", speed: "100 Мбит/с", note: "", role: "primary", targets: [], groups: ["Дата-центры"] },
+      { id: "svc-2", number: "INET-55021", address: "Офис, этаж 2", ips: "198.51.100.1", speed: "500 Мбит/с", note: "", role: "primary", targets: [], groups: ["Площадка 1"] }],
+  },
+  {
+    id: "op-2", name: "Второй-Провайдер", kind: "provider",
+    phones: [{ value: "8 800 000-00-02", label: "Поддержка" }], emails: [{ value: "support@example.org", label: "" }], portal: "", telegram: "",
+    escalation: "", contract: "Д-881", account: "", slaReactMin: 60, slaFixHours: 8, slaUptime: 99.5, domains: "example.org", notes: "",
+    services: [{ id: "svc-3", number: "BKP-310", address: "Офис, этаж 2", ips: "", speed: "100 Мбит/с", note: "Резервный канал", role: "backup", targets: [], groups: ["Площадка 1"] }],
+  },
+  {
+    id: "op-3", name: "Облако Пример", kind: "cloud",
+    phones: [], emails: [{ value: "help@cloud.example", label: "Поддержка" }], portal: "https://console.cloud.example", telegram: "",
+    escalation: "", contract: "", account: "", slaReactMin: 0, slaFixHours: 0, slaUptime: 99.95, domains: "", notes: "",
+    services: [{ id: "svc-4", number: "Проект prod-01", address: "", ips: "", speed: "", note: "", role: "primary", targets: [], groups: ["Сервисы"] }],
+  },
+];
+const nowI = Date.now();
+let incidents: Incident[] = [
+  { id: "inc-1", opened: nowI - 9 * 60e3, closed: null, severity: "critical", kind: "down", group: "Дата-центры", title: "Дата-центры: нет связи · 2 узла", cause: "сеть в порядке, не отвечает сам узел",
+    targets: [{ id: "demo-12", name: "VPN-концентратор", host: "10.0.0.254", since: nowI - 9 * 60e3, until: null, problem: "недоступен" }, { id: "demo-9", name: "Резервный туннель", host: "tunnel.example.net", since: nowI - 8.5 * 60e3, until: null, problem: "недоступен" }],
+    ackBy: null, ackAt: null, mutedUntil: null, ticket: null, log: [{ ts: nowI - 9 * 60e3, text: "VPN-концентратор: нет связи" }, { ts: nowI - 8.5 * 60e3, text: "Резервный туннель: нет связи (из-за узла выше)" }],
+    notifiedAt: nowI - 8 * 60e3, silent: false, tgMessageId: 1, remindedAt: null },
+  { id: "inc-2", opened: nowI - 31 * 60e3, closed: null, severity: "warning", kind: "degraded", group: "Сервисы", title: "IP-телефония: потери пакетов 12%", cause: "задержка растёт с хопа 6 — транзитный оператор",
+    targets: [{ id: "demo-14", name: "IP-телефония", host: "203.0.113.20", since: nowI - 31 * 60e3, until: null, problem: "потери пакетов 12%" }],
+    ackBy: "Андрей", ackAt: nowI - 28 * 60e3, mutedUntil: null, ticket: { operatorId: "op-3", operatorName: "Облако Пример", number: "58812", by: "Андрей", at: nowI - 25 * 60e3 },
+    log: [{ ts: nowI - 31 * 60e3, text: "IP-телефония: потери пакетов 12%" }, { ts: nowI - 28 * 60e3, text: "Взял в работу: Андрей" }, { ts: nowI - 25 * 60e3, text: "Обращение к оператору Облако Пример, заявка № 58812" }],
+    notifiedAt: nowI - 30 * 60e3, silent: false, tgMessageId: 2, remindedAt: null },
+];
+for (let d = 1; d <= 12; d++) {
+  const opened = nowI - d * 86400e3 + (d % 3) * 3600e3;
+  const len = (d % 4 + 1) * 9 * 60e3;
+  const t = [["demo-4", "Канал провайдера", "198.51.100.1", "Площадка 1"], ["demo-7", "Дата-центр 1", "dc1.example.net", "Дата-центры"], ["demo-1", "Бизнес-приложение", "app.example.com", "Сервисы"]][d % 3];
+  incidents.push({ id: `inc-h${d}`, opened, closed: opened + len, severity: d % 2 ? "critical" : "warning", kind: d % 2 ? "down" : "degraded", group: t[3], title: d % 2 ? `${t[1]}: нет связи` : `${t[1]}: высокая задержка 180 мс`,
+    cause: d % 2 ? "обрыв после хопа 4 — сеть оператора" : null,
+    targets: [{ id: t[0], name: t[1], host: t[2], since: opened, until: opened + len, problem: d % 2 ? "недоступен" : "высокая задержка 180 мс" }],
+    ackBy: d % 3 ? "Андрей" : null, ackAt: d % 3 ? opened + 3 * 60e3 : null, mutedUntil: null,
+    ticket: d % 2 ? { operatorId: "op-1", operatorName: "Пример-Телеком", number: String(58700 + d), by: "Андрей", at: opened + 6 * 60e3 } : null,
+    log: [{ ts: opened, text: `${t[1]}: ${d % 2 ? "нет связи" : "высокая задержка 180 мс"}` }, { ts: opened + len, text: "Закрыт" }], notifiedAt: opened + 60e3, silent: false, tgMessageId: null, remindedAt: null });
+}
+function mockTargetOps(id: string): TargetOperator[] {
+  const t = targets.find((x) => x.id === id);
+  if (!t) return [];
+  const out: TargetOperator[] = [];
+  for (const via of ["target", "group"] as const) for (const op of operators) for (const sv of op.services) {
+    if (via === "target" ? sv.targets.includes(id) : sv.groups.includes(t.group)) out.push({ operator: op, service: sv, via });
+  }
+  return out.sort((a, b) => (a.service?.role === "backup" ? 1 : 0) - (b.service?.role === "backup" ? 1 : 0));
+}
+function mockDraft(incidentId?: string | null, targetId?: string | null, operatorId?: string | null): TicketDraft {
+  const inc = incidents.find((i) => i.id === incidentId);
+  const tid = targetId ?? inc?.targets[0]?.id ?? "";
+  const t = targets.find((x) => x.id === tid);
+  const ops = mockTargetOps(tid);
+  const o = ops.find((x) => x.operator.id === operatorId) ?? ops[0];
+  const since = new Date(inc?.opened ?? Date.now() - 600e3);
+  const hhmm = since.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(",", "");
+  const what = inc?.kind === "degraded" ? "ухудшение связи" : "нет связи";
+  const body = [
+    "Здравствуйте!",
+    o?.operator.contract ? `Договор № ${o.operator.contract}${o.operator.account ? `, л/с ${o.operator.account}` : ""}.` : "",
+    `С ${hhmm} ${what}${o?.service?.number ? ` по услуге ${o.service.number}` : ""}.`,
+    o?.service?.address ? `Адрес подключения: ${o.service.address}.` : "",
+    "",
+    `Узел ${t?.name ?? "—"} (${t?.host ?? ""}) не отвечает, потери 100%.`,
+    inc?.cause ? `Наш анализ: ${inc.cause}.` : "",
+    "Трассировка:",
+    "   3  203.0.113.1  2.1 мс",
+    "   4  203.0.113.45  нет ответа",
+    "",
+    "Просим проверить и сообщить номер заявки.",
+    `Контакт: ${settings.dutyName}, ${settings.dutyContact}`,
+  ].filter((x, i, a) => x !== "" || (a[i - 1] ?? "") !== "").join("\n");
+  return { operatorId: o?.operator.id ?? null, operatorName: o?.operator.name ?? null, to: o?.operator.emails[0]?.value ?? null, subject: `${what[0].toUpperCase()}${what.slice(1)} · ${o?.service?.number ?? t?.name ?? ""}`, body };
+}
+function mockProfiles(from: number, to: number): DowntimeProfile[] {
+  return targets.map((t, i) => {
+    const days: [number, number][] = [];
+    const start = new Date(from); start.setHours(0, 0, 0, 0);
+    for (let d = start.getTime(); d < to; d += 86400e3) {
+      const v = rnd(i * 17 + 3, Math.floor(d / 86400e3));
+      if (v > 0.78) days.push([d, Math.round(v * 40) * 60e3]);
+    }
+    const hours = Array.from({ length: 24 }, (_, h) => (rnd(i * 7 + h, 99) > 0.85 ? Math.round(rnd(h, i) * 20) * 60e3 : 0));
+    return { id: t.id, days, hours };
+  });
+}
 
 function rnd(a: number, b: number) {
   let h = (a * 374761393 + b * 668265263) | 0;
@@ -80,11 +176,17 @@ let settings: Settings = {
     certDays: 14,
     repeatMinutes: 0,
     notifyRecovery: true,
+    notifyDelaySec: 60,
+    quietEnabled: false,
+    quietFrom: 23,
+    quietTo: 8,
+    digestEnabled: false,
+    digestHour: 9,
   },
   channels: {
     system: true,
     sound: true,
-    telegram: { enabled: false, botToken: "", chatId: "" },
+    telegram: { enabled: false, botToken: "", chatId: "", interactive: true },
     webhook: { enabled: false, url: "", format: "slack" },
     email: { enabled: false, host: "", port: 587, security: "starttls", username: "", password: "", from: "", to: "" },
   },
@@ -92,6 +194,11 @@ let settings: Settings = {
   launchAtLogin: false,
   autoUpdate: true,
   language: "ru",
+  theme: (() => { try { return localStorage.getItem("np.theme") || "pulse"; } catch { return "pulse"; } })(),
+  dutyName: "Дежурный",
+  dutyContact: "+7 900 000-00-00",
+  slaTarget: 99.9,
+  incidentControl: false,
   templates: defaultTemplates(),
 };
 
@@ -304,8 +411,13 @@ function timeline(t: Target, ttl: number | null, from: number, to: number, point
 }
 
 const listeners: Array<(p: AlertPayload) => void> = [];
+const incListeners: Array<(p: IncidentPayload) => void> = [];
 
 export const mock = {
+  onIncident(cb: (p: IncidentPayload) => void) {
+    incListeners.push(cb);
+    return () => incListeners.splice(incListeners.indexOf(cb), 1);
+  },
   onAlert(cb: (p: AlertPayload) => void) {
     listeners.push(cb);
     return () => listeners.splice(listeners.indexOf(cb), 1);
@@ -317,6 +429,14 @@ export const mock = {
       return t;
     };
     switch (cmd) {
+      case "incident_demo": {
+        const i = structuredClone(incidents[0]);
+        i.id = "demo";
+        i.title = "Проверка · " + i.title;
+        const notice = { event: "demo", title: "🔴 " + i.title, body: i.targets.map((x) => x.name).join(", ") + "\n" + (i.cause ?? "") + "\nЗвонить: Пример-Телеком · 8 800 000-00-00", severity: "critical", incident: i };
+        setTimeout(() => incListeners.forEach((l) => l({ notice, sound: false })), 300);
+        return "Пример отправлен в Телеграм и показан на компьютере.";
+      }
       case "engine_info":
         return { icmpMode: "демо-режим (браузер)", icmpError: null, supportsTrace: true, version: "1.0.19", dataDir: "—", logPath: "—", dbWarning: null };
       case "list_targets": return structuredClone(targets);
@@ -434,6 +554,27 @@ export const mock = {
       case "check_update": return null;
       case "update_source": return null;
       case "get_topology": return mockTopology();
+      case "scan_subnets": return [{ subnet: "192.168.1.0/24", targets: 3, local: true }];
+      case "scan_start": {
+        mockScan.running = true; mockScan.started = Date.now(); mockScan.done = 0; mockScan.total = 20; mockScan.phase = "Трассировка целей";
+        const tick = setInterval(() => { mockScan.done++; if (mockScan.done >= mockScan.total) { clearInterval(tick); mockScan.running = false; mockScan.phase = "Готово"; mockScan.finished = Date.now(); mockScan.scanId = "demo"; } }, 150);
+        return undefined;
+      }
+      case "scan_progress": return { ...mockScan };
+      case "scan_stop": mockScan.running = false; return undefined;
+      case "scan_last": return mockScan.scanId ? JSON.stringify(mockScanResult()) : null;
+      case "scan_list": return mockScan.scanId ? [{ id: "demo", started: mockScan.started, finished: mockScan.finished, traces: 0, devices: 3 }] : [];
+      case "get_incidents": return incidents.filter((i) => i.opened < a.to && (i.closed == null || i.closed >= a.from)).sort((x, y) => y.opened - x.opened);
+      case "incident_ack": { const i = incidents.find((x) => x.id === a.id)!; if (!i.ackBy) { i.ackBy = settings.dutyName || "дежурный"; i.ackAt = Date.now(); i.log.push({ ts: Date.now(), text: `Взял в работу: ${i.ackBy}` }); } return structuredClone(i); }
+      case "incident_mute": { const i = incidents.find((x) => x.id === a.id)!; i.mutedUntil = a.minutes > 0 ? Date.now() + a.minutes * 60e3 : null; i.log.push({ ts: Date.now(), text: a.minutes > 0 ? "Тишина на 1 ч" : "Тишина снята" }); return structuredClone(i); }
+      case "incident_ticket": { const i = incidents.find((x) => x.id === a.id)!; const op = operators.find((o) => o.id === a.operatorId); i.ticket = { operatorId: a.operatorId, operatorName: op?.name ?? "", number: a.number, by: settings.dutyName, at: Date.now() }; i.log.push({ ts: Date.now(), text: `Обращение к оператору ${op?.name ?? "—"}${a.number ? `, заявка № ${a.number}` : ""}` }); if (!i.ackBy) { i.ackBy = settings.dutyName; i.ackAt = Date.now(); } return structuredClone(i); }
+      case "incident_note": { const i = incidents.find((x) => x.id === a.id)!; i.log.push({ ts: Date.now(), text: `${settings.dutyName}: ${a.text}` }); return structuredClone(i); }
+      case "ticket_draft": return mockDraft(a.incidentId, a.targetId, a.operatorId);
+      case "list_operators": return structuredClone(operators).sort((x, y) => x.name.localeCompare(y.name, "ru"));
+      case "save_operator": { const op = structuredClone(a.operator) as Operator; if (!op.id) op.id = "op-" + Math.random().toString(36).slice(2, 8); op.services.forEach((sv) => { if (!sv.id) sv.id = "svc-" + Math.random().toString(36).slice(2, 8); }); const k = operators.findIndex((o) => o.id === op.id); if (k >= 0) operators[k] = op; else operators.push(op); return op; }
+      case "delete_operator": operators = operators.filter((o) => o.id !== a.id); return null;
+      case "target_operators": return mockTargetOps(a.id);
+      case "downtime_profiles": return mockProfiles(a.from, a.to);
       case "get_map_layout": { try { return localStorage.getItem("np.mock.map"); } catch { return null; } }
       case "save_map_layout": { try { localStorage.setItem("np.mock.map", a.layout); } catch { /* */ } return undefined; }
       case "project_page": return null;
@@ -483,6 +624,25 @@ export const mock = {
 };
 
 /** Демо-топология для работы в браузере: локалка, провайдер, интернет. */
+const mockScan = { running: false, phase: "", done: 0, total: 0, started: 0, finished: 0, error: null as string | null, scanId: null as string | null };
+function mockScanResult() {
+  const topo = mockTopology();
+  const dev = (ip: string, name: string, vendor: string, kind: string, ports: number[], os: string | null = null) => ({
+    ip, subnet: "192.168.1.0/24", mac: "00:11:22:33:44:" + ip.split(".")[3].padStart(2, "0"), vendor, name, rtt: 1.2, ping: true, ports,
+    services: ports.map((p) => ({ port: p, name: String(p), banner: null })), kind, os, osSource: os ? "SSH" : null, targetId: null, firstSeen: mockScan.started, lastSeen: mockScan.started,
+  });
+  return {
+    id: "demo", started: mockScan.started, finished: mockScan.finished, localIp: topo.localIp, gateway: "192.168.1.1", subnets: ["192.168.1.0/24"],
+    traces: topo.routes.map((r) => ({ targetId: r.targetId, ip: "", hops: r.hops, reached: r.reached, alt: [] })),
+    devices: [
+      dev("192.168.1.20", "printer-2", "Kyocera", "printer", [80, 9100]),
+      dev("192.168.1.31", "nas", "Synology", "storage", [22, 443, 5000], "Synology DSM"),
+      dev("192.168.1.44", "pc-reception", "Dell", "pc", [135, 445, 3389], "Windows"),
+    ],
+    names: {},
+  };
+}
+
 function mockTopology() {
   const gw = "192.168.1.1";
   const isp = ["198.51.100.1", "198.51.100.9"];

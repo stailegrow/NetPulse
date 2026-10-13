@@ -125,20 +125,21 @@ export function RouteBadge({ at, text }: { at: number | null; text: string | nul
 export function Logo({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M2 13h5l2-5 3 10 2.5-13L17 13h5" stroke="var(--accent)" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M2 13h5l2-5 3 10 2.5-13L17 13h5" stroke="#35e08a" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-type IconName = "chart" | "grid" | "list" | "bell" | "gear" | "plus" | "back" | "pause" | "play" | "edit" | "trash" | "download" | "search" | "tiles" | "rows" | "bellOff" | "report" | "collapse" | "expand" | "map";
+type IconName = "chart" | "grid" | "list" | "bell" | "gear" | "plus" | "back" | "pause" | "play" | "edit" | "trash" | "download" | "search" | "tiles" | "rows" | "bellOff" | "report" | "collapse" | "expand" | "map" | "phone" | "hand" | "send" | "clipboard" | "check" | "x" | "alert" | "bolt" | "timer" | "route" | "lock" | "info" | "note";
 const paths: Record<IconName, string> = {
   chart: "M3 7h18M3 12h4l2-3 3 6 2-3h7M3 17h18",
   grid: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
   list: "M4 6h16M4 12h16M4 18h16",
   bell: "M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0",
   bellOff: "M6 16V11a6 6 0 0 1 9.5-4.9M18 11v5l2 2H8M10 20a2 2 0 0 0 4 0M3 3l18 18",
-  gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1L15 3.5h-4l-.3 2.5a7 7 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7 7 0 0 0 1.7-1l2.4 1 2-3.4z",
+  gear: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2zM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z",
   plus: "M12 5v14M5 12h14",
+  phone: "M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2",
   back: "M15 5l-7 7 7 7",
   pause: "M8 5v14M16 5v14",
   play: "M7 5l12 7-12 7z",
@@ -152,7 +153,50 @@ const paths: Record<IconName, string> = {
   report: "M6 3h9l4 4v14H6zM14 3v5h5M9 17v-3M12 17v-6M15 17v-4",
   collapse: "M4 5h16v14H4zM9 5v14M16 9l-3 3 3 3",
   expand: "M4 5h16v14H4zM9 5v14M13 9l3 3-3 3",
+  hand: "M8 13V6.5a1.5 1.5 0 0 1 3 0V11M11 11V5a1.5 1.5 0 0 1 3 0v6M14 11V6.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-.6a6 6 0 0 1-4.6-2.2L3.6 16a1.5 1.5 0 0 1 2.3-1.9L8 16",
+  send: "M21 4L3 11.2l6.3 2.4M21 4l-3.6 16-8.1-6.4M21 4L9.3 13.6V19l3-3.2",
+  clipboard: "M9 3.5h6v3H9zM7.5 5H5.5v16h13V5h-2M9 11.5h6M9 15.5h4",
+  check: "M5 12.5l4.5 4.5L19 7.5",
+  x: "M7 7l10 10M17 7L7 17",
+  alert: "M12 4l9 16H3zM12 10v4.5M12 17.4v.1",
+  bolt: "M13 3L5 13.5h6L10 21l8-10.5h-6z",
+  timer: "M12 9v4.5l3 2M9.5 3h5M12 21a8 8 0 1 1 0-16 8 8 0 0 1 0 16z",
+  route: "M6 3v7a4 4 0 0 0 4 4h9M16 11l3 3-3 3M6 21v-3",
+  lock: "M6 11h12v10H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3",
+  info: "M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18zM12 11v5M12 7.9v.1",
+  note: "M5 4h14v16H5zM8.5 9h7M8.5 13h7M8.5 17h4",
 };
+
+export type { IconName };
+
+/** Значок события: цветная плашка с символом вместо эмодзи. */
+export type EvTone = "down" | "warn" | "ok" | "info" | "route";
+export function evGlyph(kind: string, severity: string): { icon: IconName; tone: EvTone } {
+  switch (kind) {
+    case "down": return { icon: "x", tone: "down" };
+    case "outage": return { icon: "bolt", tone: "down" };
+    case "recovered": case "loss_ok": case "latency_ok": case "jitter_ok": case "mos_ok": return { icon: "check", tone: "ok" };
+    case "loss": case "jitter": case "mos": return { icon: "alert", tone: "warn" };
+    case "latency": return { icon: "timer", tone: "warn" };
+    case "warning": return { icon: "timer", tone: severity === "critical" ? "down" : "warn" };
+    case "route": return { icon: "route", tone: "route" };
+    case "cert": return { icon: "lock", tone: severity === "critical" ? "down" : "warn" };
+    case "channel_error": return { icon: "send", tone: "warn" };
+  }
+  if (severity === "critical") return { icon: "x", tone: "down" };
+  if (severity === "warning") return { icon: "alert", tone: "warn" };
+  if (severity === "ok") return { icon: "check", tone: "ok" };
+  if (severity === "route") return { icon: "route", tone: "route" };
+  return { icon: "info", tone: "info" };
+}
+
+export function EvIcon({ kind, severity, size = 22 }: { kind: string; severity: string; size?: number }) {
+  const g = evGlyph(kind, severity);
+  return <span className={"evi " + g.tone} style={{ width: size, height: size }}><Icon name={g.icon} size={Math.round(size * 0.6)} /></span>;
+}
+
+/** Убирает служебные эмодзи в начале текста (⛔, 🟢, 🔴, ⏱…), флаги и прочее в названиях не трогает. */
+export const stripMark = (s: string) => s.replace(/^(?:[\u2600-\u27BF\u23E9-\u23FA\u2B50\u2B55]|[\u{1F300}-\u{1FAFF}])\uFE0F?\s*/u, "");
 
 export function Icon({ name, size = 15 }: { name: IconName; size?: number }) {
   return (

@@ -170,7 +170,7 @@ export function TargetModal({ initial, groups, defaultGroup, onClose, onSaved }:
 
   return (
     <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
+      <div className="modal modal-fixed">
         <div className="modal-h">
           <h2>{isNew ? "Новая цель мониторинга" : `Настройки: ${initial?.name}`}</h2>
           <div style={{ flex: 1 }} />

@@ -116,6 +116,98 @@ async fn save_map_layout(m: State<'_, Arc<Monitor>>, layout: String) -> R<()> {
 }
 
 #[tauri::command]
+async fn scan_subnets(m: State<'_, Arc<Monitor>>) -> R<Vec<netpulse_core::monitor::SubnetHint>> {
+    blocking(&m, |m| Ok(m.scan_subnets())).await
+}
+
+#[tauri::command]
+fn scan_start(m: State<'_, Arc<Monitor>>, subnets: Vec<String>) -> R<()> {
+    m.inner().scan_start(subnets).map_err(e)
+}
+
+#[tauri::command]
+fn scan_progress(m: State<'_, Arc<Monitor>>) -> netpulse_core::scan::ScanProgress {
+    m.scan_progress()
+}
+
+#[tauri::command]
+fn scan_stop(m: State<'_, Arc<Monitor>>) {
+    m.scan_stop()
+}
+
+#[tauri::command]
+async fn scan_last(m: State<'_, Arc<Monitor>>) -> R<Option<String>> {
+    blocking(&m, |m| m.scan_last().map_err(e)).await
+}
+
+#[tauri::command]
+async fn scan_list(m: State<'_, Arc<Monitor>>) -> R<Vec<netpulse_core::scan::ScanInfo>> {
+    blocking(&m, |m| m.scan_list().map_err(e)).await
+}
+
+#[tauri::command]
+async fn scan_get(m: State<'_, Arc<Monitor>>, id: String) -> R<Option<String>> {
+    blocking(&m, move |m| m.scan_get(&id).map_err(e)).await
+}
+
+// ------------------------------------------------------------ инциденты и операторы
+
+#[tauri::command]
+async fn get_incidents(m: State<'_, Arc<Monitor>>, from: i64, to: i64, limit: usize) -> R<Vec<netpulse_core::model::Incident>> {
+    blocking(&m, move |m| m.incidents(from, to, limit).map_err(e)).await
+}
+
+#[tauri::command]
+async fn incident_ack(m: State<'_, Arc<Monitor>>, id: String) -> R<netpulse_core::model::Incident> {
+    blocking(&m, move |m| m.incident_ack(&id, None).map_err(e)).await
+}
+
+#[tauri::command]
+async fn incident_mute(m: State<'_, Arc<Monitor>>, id: String, minutes: i64) -> R<netpulse_core::model::Incident> {
+    blocking(&m, move |m| m.incident_mute(&id, minutes, None).map_err(e)).await
+}
+
+#[tauri::command]
+async fn incident_ticket(m: State<'_, Arc<Monitor>>, id: String, operator_id: String, number: String) -> R<netpulse_core::model::Incident> {
+    blocking(&m, move |m| m.incident_ticket(&id, &operator_id, &number).map_err(e)).await
+}
+
+#[tauri::command]
+async fn incident_note(m: State<'_, Arc<Monitor>>, id: String, text: String) -> R<netpulse_core::model::Incident> {
+    blocking(&m, move |m| m.incident_note(&id, &text).map_err(e)).await
+}
+
+#[tauri::command]
+async fn ticket_draft(m: State<'_, Arc<Monitor>>, incident_id: Option<String>, target_id: Option<String>, operator_id: Option<String>) -> R<netpulse_core::monitor::TicketDraft> {
+    blocking(&m, move |m| m.ticket_draft(incident_id.as_deref(), target_id.as_deref(), operator_id.as_deref()).map_err(e)).await
+}
+
+#[tauri::command]
+async fn list_operators(m: State<'_, Arc<Monitor>>) -> R<Vec<netpulse_core::model::Operator>> {
+    blocking(&m, |m| Ok(m.operators())).await
+}
+
+#[tauri::command]
+async fn save_operator(m: State<'_, Arc<Monitor>>, operator: netpulse_core::model::Operator) -> R<netpulse_core::model::Operator> {
+    blocking(&m, move |m| m.save_operator(operator).map_err(e)).await
+}
+
+#[tauri::command]
+async fn delete_operator(m: State<'_, Arc<Monitor>>, id: String) -> R<()> {
+    blocking(&m, move |m| m.delete_operator(&id).map_err(e)).await
+}
+
+#[tauri::command]
+async fn target_operators(m: State<'_, Arc<Monitor>>, id: String) -> R<Vec<netpulse_core::model::TargetOperator>> {
+    blocking(&m, move |m| Ok(m.target_operators(&id))).await
+}
+
+#[tauri::command]
+async fn downtime_profiles(m: State<'_, Arc<Monitor>>, from: i64, to: i64) -> R<Vec<netpulse_core::model::DowntimeProfile>> {
+    blocking(&m, move |m| m.downtime_profiles(from, to).map_err(e)).await
+}
+
+#[tauri::command]
 async fn read_log(m: State<'_, Arc<Monitor>>) -> R<String> {
     blocking(&m, |m| Ok(netpulse_core::logging::tail(std::path::Path::new(&m.engine_info().data_dir), 400))).await
 }
@@ -201,6 +293,12 @@ async fn save_settings(app: AppHandle, m: State<'_, Arc<Monitor>>, settings: Set
 async fn test_channel(m: State<'_, Arc<Monitor>>, channel: String) -> R<()> {
     let m = m.inner().clone();
     m.test_channel(&channel).await.map_err(e)
+}
+
+#[tauri::command]
+async fn incident_demo(m: State<'_, Arc<Monitor>>) -> R<String> {
+    let m = m.inner().clone();
+    m.incident_demo().await.map_err(e)
 }
 
 #[tauri::command]
@@ -323,6 +421,37 @@ fn open_project_page() -> R<()> {
         c
     };
     cmd.spawn().map_err(|err| format!("не удалось открыть браузер: {err}"))?;
+    Ok(())
+}
+
+/// Открывает ссылку системным приложением: письмо, звонок, сайт оператора.
+#[tauri::command]
+fn open_link(url: String) -> R<()> {
+    let ok = ["mailto:", "tel:", "https://", "http://", "tg://"].iter().any(|p| url.to_lowercase().starts_with(p));
+    if !ok {
+        return Err("такие ссылки не открываются".into());
+    }
+    #[cfg(target_os = "macos")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("open");
+        c.arg(&url);
+        c
+    };
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        use std::os::windows::process::CommandExt;
+        let mut c = std::process::Command::new("rundll32");
+        c.args(["url.dll,FileProtocolHandler", &url]);
+        c.creation_flags(0x0800_0000);
+        c
+    };
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut cmd = {
+        let mut c = std::process::Command::new("xdg-open");
+        c.arg(&url);
+        c
+    };
+    cmd.spawn().map_err(|err| format!("не удалось открыть ссылку: {err}"))?;
     Ok(())
 }
 
@@ -470,16 +599,37 @@ fn spawn_tray_updater(app: AppHandle, m: Arc<Monitor>) {
 }
 
 fn spawn_alert_listener(app: AppHandle, m: Arc<Monitor>) {
+    // Разовые события (смена маршрута, сертификат…): уведомление на каждое.
+    // Недоступность, потери и восстановления приходят ниже — одним уведомлением на инцидент.
     let mut rx = m.subscribe();
+    let (app1, m1) = (app.clone(), m.clone());
     tauri::async_runtime::spawn(async move {
         loop {
             match rx.recv().await {
                 Ok(alert) => {
-                    let ch = m.settings().channels;
-                    if alert.notify && ch.system {
-                        let _ = app.notification().builder().title("NetPulse").body(&alert.message).show();
+                    let ch = m1.settings().channels;
+                    let own = !netpulse_core::incidents::handled_by_incidents(&alert.kind);
+                    if own && alert.notify && ch.system {
+                        let _ = app1.notification().builder().title("NetPulse").body(&alert.message).show();
                     }
-                    let _ = app.emit("alert", serde_json::json!({ "alert": alert, "sound": ch.sound && alert.notify }));
+                    let _ = app1.emit("alert", serde_json::json!({ "alert": alert, "sound": own && ch.sound && alert.notify, "viaIncident": !own }));
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(_) => return,
+            }
+        }
+    });
+    let mut rx = m.subscribe_incidents();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            match rx.recv().await {
+                Ok(n) => {
+                    let ch = m.settings().channels;
+                    if ch.system {
+                        let _ = app.notification().builder().title(&n.title).body(&n.body).show();
+                    }
+                    let sound = ch.sound && n.event != "close";
+                    let _ = app.emit("incident", serde_json::json!({ "notice": n, "sound": sound }));
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                 Err(_) => return,
@@ -618,6 +768,13 @@ pub fn run() {
             get_topology,
             get_map_layout,
             save_map_layout,
+            scan_subnets,
+            scan_start,
+            scan_progress,
+            scan_stop,
+            scan_last,
+            scan_list,
+            scan_get,
             get_diagnosis,
             reorder_groups,
             get_trace,
@@ -646,6 +803,19 @@ pub fn run() {
             export_report,
             get_heatmap,
             get_hop_timelines,
+            get_incidents,
+            incident_ack,
+            incident_mute,
+            incident_ticket,
+            incident_note,
+            incident_demo,
+            ticket_draft,
+            list_operators,
+            save_operator,
+            delete_operator,
+            target_operators,
+            downtime_profiles,
+            open_link,
         ])
         .build(tauri::generate_context!())
         .expect("не удалось запустить NetPulse");

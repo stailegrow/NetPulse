@@ -180,6 +180,13 @@ export interface AlertRules {
   certDays: number;
   repeatMinutes: number;
   notifyRecovery: boolean;
+  /** Сообщать, только если проблема держится дольше N секунд. */
+  notifyDelaySec: number;
+  quietEnabled: boolean;
+  quietFrom: number;
+  quietTo: number;
+  digestEnabled: boolean;
+  digestHour: number;
 }
 
 export interface Settings {
@@ -191,7 +198,7 @@ export interface Settings {
   channels: {
     system: boolean;
     sound: boolean;
-    telegram: { enabled: boolean; botToken: string; chatId: string };
+    telegram: { enabled: boolean; botToken: string; chatId: string; interactive: boolean };
     webhook: { enabled: boolean; url: string; format: "slack" | "discord" | "generic" };
     email: {
       enabled: boolean;
@@ -209,6 +216,16 @@ export interface Settings {
   autoUpdate: boolean;
   /** Язык интерфейса. */
   language: "ru" | "en";
+  /** Тема оформления. */
+  theme: string;
+  /** Кто дежурит за этим компьютером. */
+  dutyName: string;
+  /** Контакт для обратной связи в заявке оператору. */
+  dutyContact: string;
+  /** Целевая доступность для отчётов, %. */
+  slaTarget: number;
+  /** Контроль и отслеживание инцидентов: взять в работу, тишина, заявки, напоминания, кнопки бота. */
+  incidentControl: boolean;
   templates: TargetTemplate[];
 }
 
@@ -266,6 +283,37 @@ export interface EngineInfo {
 export interface AlertPayload {
   alert: { targetId: string; targetName: string; kind: string; severity: string; message: string; notify: boolean; silent?: boolean };
   sound: boolean;
+  /** Событие входит в инцидент — о нём сообщает уведомление инцидента, а не отдельное. */
+  viaIncident?: boolean;
+}
+
+/** Недоступность, потери, задержка и восстановления — сообщаются через инциденты. */
+export const INCIDENT_KINDS = ["down", "outage", "loss", "latency", "jitter", "mos", "warning", "recovered", "loss_ok", "latency_ok", "jitter_ok", "mos_ok"];
+
+export interface IncidentNotice {
+  /** open | close | remind | demo */
+  event: string;
+  title: string;
+  body: string;
+  severity: string;
+  incident: Incident;
+}
+
+export interface IncidentPayload {
+  notice: IncidentNotice;
+  sound: boolean;
+}
+
+/** Запись в ленте уведомлений (колокольчик). */
+export interface FeedItem {
+  id: string;
+  ts: number;
+  title: string;
+  body: string;
+  severity: string;
+  incidentId?: string;
+  targetId?: string;
+  event?: string;
 }
 
 const KIND_LABEL_RU: Record<CheckKind, string> = {
@@ -357,4 +405,137 @@ export interface Topology {
   routes: MapRoute[];
   hops: MapHop[];
   pending: number;
+}
+
+/** Сканирование сети по кнопке. */
+export interface ScanProgress {
+  running: boolean;
+  phase: string;
+  done: number;
+  total: number;
+  started: number;
+  finished: number;
+  error: string | null;
+  scanId: string | null;
+}
+export interface ScanTrace {
+  targetId: string;
+  ip: string;
+  hops: (string | null)[];
+  reached: boolean;
+  alt: (string | null)[][];
+}
+export interface ScanService { port: number; name: string; banner: string | null }
+export interface ScanDevice {
+  ip: string;
+  subnet: string;
+  mac: string | null;
+  vendor: string | null;
+  name: string | null;
+  rtt: number | null;
+  ping: boolean;
+  ports: number[];
+  services: ScanService[];
+  kind: string | null;
+  os: string | null;
+  osSource: string | null;
+  targetId: string | null;
+  firstSeen: number;
+  lastSeen: number;
+}
+export interface ScanResult {
+  id: string;
+  started: number;
+  finished: number;
+  localIp: string | null;
+  gateway: string | null;
+  subnets: string[];
+  traces: ScanTrace[];
+  devices: ScanDevice[];
+  names: Record<string, string>;
+}
+export interface ScanInfo { id: string; started: number; finished: number; traces: number; devices: number }
+export interface SubnetHint { subnet: string; targets: number; local: boolean }
+
+// ---------------------------------------------------------------- Инциденты и операторы
+
+export interface IncidentTarget { id: string; name: string; host: string; since: number; until: number | null; problem: string }
+export interface IncidentLog { ts: number; text: string }
+export interface IncidentTicket { operatorId: string; operatorName: string; number: string; by: string; at: number }
+export interface Incident {
+  id: string;
+  opened: number;
+  closed: number | null;
+  severity: "critical" | "warning";
+  kind: "down" | "degraded";
+  group: string;
+  title: string;
+  cause: string | null;
+  targets: IncidentTarget[];
+  ackBy: string | null;
+  ackAt: number | null;
+  mutedUntil: number | null;
+  ticket: IncidentTicket | null;
+  log: IncidentLog[];
+  notifiedAt: number | null;
+  silent: boolean;
+  tgMessageId: number | null;
+  remindedAt: number | null;
+}
+
+export interface Contact { value: string; label: string }
+export interface OperatorService {
+  id: string;
+  number: string;
+  address: string;
+  ips: string;
+  speed: string;
+  note: string;
+  role: "primary" | "backup";
+  targets: string[];
+  groups: string[];
+}
+/** Встроенные типы оператора; кроме них можно задать своё название («Площадка», «Офис»…). */
+export type BuiltinOperatorKind = "provider" | "datacenter" | "hosting" | "cloud" | "contractor" | "other";
+export type OperatorKind = string;
+export interface Operator {
+  id: string;
+  name: string;
+  kind: OperatorKind;
+  phones: Contact[];
+  emails: Contact[];
+  portal: string;
+  telegram: string;
+  escalation: string;
+  contract: string;
+  account: string;
+  slaReactMin: number;
+  slaFixHours: number;
+  slaUptime: number;
+  domains: string;
+  notes: string;
+  services: OperatorService[];
+}
+export interface TargetOperator { operator: Operator; service: OperatorService | null; via: "target" | "group" | "hint" | "name" }
+export interface TicketDraft { operatorId: string | null; operatorName: string | null; to: string | null; subject: string; body: string }
+export interface DowntimeProfile { id: string; days: [number, number][]; hours: number[] }
+
+export const OPERATOR_KIND: Record<string, string> = {
+  provider: "Провайдер",
+  datacenter: "ЦОД",
+  hosting: "Хостинг",
+  cloud: "Облако",
+  contractor: "Подрядчик",
+  other: "Другое",
+};
+/** Подпись типа оператора: встроенный — по словарю, свой — как ввели. */
+export const operatorKindLabel = (k: string) => OPERATOR_KIND[k] ?? k;
+export const isBuiltinKind = (k: string) => k in OPERATOR_KIND;
+
+export function emptyOperator(): Operator {
+  return {
+    id: "", name: "", kind: "provider", phones: [{ value: "", label: "Техподдержка" }], emails: [{ value: "", label: "Заявки" }],
+    portal: "", telegram: "", escalation: "", contract: "", account: "", slaReactMin: 0, slaFixHours: 0, slaUptime: 0,
+    domains: "", notes: "", services: [],
+  };
 }

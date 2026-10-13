@@ -2,11 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { plural } from "./format";
 import { setLang, t } from "./i18n";
 import { api, isMac, isTauri } from "./api";
-import type { EngineInfo, Target, TargetSummary, TargetTemplate, UpdateInfo } from "./types";
-import { DEFAULT_GROUP } from "./types";
+import type { EngineInfo, FeedItem, IncidentNotice, Target, TargetSummary, TargetTemplate, UpdateInfo } from "./types";
+import { DEFAULT_GROUP, INCIDENT_KINDS } from "./types";
+import { IncidentControl } from "./control";
+import { IncidentToasts, NoticeBell, loadFeed, saveFeed, type IncToast } from "./components/Notices";
 import { Dashboard } from "./pages/Dashboard";
 import { TargetDetail } from "./pages/TargetDetail";
-import { Events } from "./pages/Events";
+import { Incidents } from "./pages/Incidents";
+import { Operators } from "./pages/Operators";
 import { SettingsPage } from "./pages/SettingsPage";
 import { Reports } from "./pages/Reports";
 import { NetworkMap } from "./pages/NetworkMap";
@@ -15,12 +18,13 @@ import { BulkEditModal, applyBulk } from "./components/Templates";
 import type { BulkPatch } from "./components/Templates";
 import { Compare } from "./pages/Compare";
 import { TargetModal } from "./components/TargetModal";
-import { Dot, Icon, Logo } from "./components/ui";
+import { Dot, Icon, Logo, stripMark } from "./components/ui";
 import { beep } from "./sound";
+import { applyTheme, currentTheme, type ThemeDef } from "./theme";
 import { ask, askGroupDelete, askText, ConfirmHost, ContextMenu, GroupDeleteHost, PromptHost } from "./components/Dialogs";
 import type { MenuItem } from "./components/Dialogs";
 
-type Page = { name: "dashboard" } | { name: "target"; id: string; at?: number } | { name: "events" } | { name: "settings" } | { name: "reports" } | { name: "compare" } | { name: "wallboard" } | { name: "map" };
+type Page = { name: "dashboard" } | { name: "target"; id: string; at?: number } | { name: "events"; tab?: { tab: "open" | "history" | "journal" } } | { name: "operators"; target?: string } | { name: "settings" } | { name: "reports" } | { name: "compare" } | { name: "wallboard" } | { name: "map" };
 interface Toast { id: number; msg: string; kind: string }
 
 export default function App() {
@@ -31,6 +35,17 @@ export default function App() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [info, setInfo] = useState<EngineInfo | null>(null);
   const [unread, setUnread] = useState(0);
+  const [control, setControl] = useState(false);
+  const [feed, setFeed] = useState<FeedItem[]>(() => loadFeed());
+  const [incToasts, setIncToasts] = useState<IncToast[]>([]);
+  const pushFeed = useCallback((f: FeedItem) => setFeed((cur) => { const n = [f, ...cur].slice(0, 60); saveFeed(n); return n; }), []);
+  const [openInc, setOpenInc] = useState(0);
+  useEffect(() => {
+    const load = () => api.incidents(Date.now(), Date.now() + 1, 200).then((l) => setOpenInc(l.filter((i) => i.closed == null).length)).catch(() => {});
+    load();
+    const h = setInterval(load, 5000);
+    return () => clearInterval(h);
+  }, []);
   const [refreshKey, setRefreshKey] = useState(0);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -93,9 +108,12 @@ export default function App() {
 
   // Язык интерфейса берём из настроек: перерисовка идёт через состояние lang.
   const [lang, setLangState] = useState<string>("ru");
+  // Тема применена ещё до первой отрисовки (main.tsx); из настроек — окончательно.
+  const [theme, setThemeState] = useState<ThemeDef>(() => currentTheme());
+  const changeTheme = useCallback((id: string) => setThemeState(applyTheme(id)), []);
   const [dbWarnHidden, setDbWarnHidden] = useState(false);
   useEffect(() => {
-    api.settings().then((s) => { setLang(s.language); setLangState(s.language); }).catch(() => {});
+    api.settings().then((s) => { setControl(!!s.incidentControl); setLang(s.language); setLangState(s.language); if (s.theme && s.theme !== currentTheme().id) changeTheme(s.theme); }).catch(() => {});
   }, [refreshKey]);
 
   useEffect(() => {
@@ -107,14 +125,41 @@ export default function App() {
 
   useEffect(() => {
     let off: (() => void) | undefined;
+    let dead = false;
     api.onAlert((p) => {
       if (p.alert.silent) return; // режим тишины: только журнал
-      toast(p.alert.message, p.alert.severity);
+      // Недоступность, потери и восстановления сообщаются одним уведомлением инцидента.
+      if (p.viaIncident ?? INCIDENT_KINDS.includes(p.alert.kind)) return;
+      toast(stripMark(p.alert.message), p.alert.severity);
       if (p.sound) beep(p.alert.severity);
-      if (p.alert.notify) setUnread((n) => n + 1);
-    }).then((f) => (off = f));
-    return () => off?.();
-  }, [toast]);
+      if (p.alert.notify && p.alert.kind !== "test") {
+        const [title, ...rest] = stripMark(p.alert.message).split("\n");
+        pushFeed({ id: `a${Date.now()}${Math.random()}`, ts: Date.now(), title, body: rest.join(" "), severity: p.alert.severity, targetId: p.alert.targetId || undefined });
+        setUnread((n) => n + 1);
+      }
+    }).then((f) => { if (dead) f(); else off = f; });
+    return () => { dead = true; off?.(); };
+  }, [toast, pushFeed]);
+
+  const incKey = useRef(0);
+  useEffect(() => {
+    let off: (() => void) | undefined;
+    let dead = false;
+    api.onIncident(({ notice: n, sound }) => {
+      const key = ++incKey.current;
+      setIncToasts((cur) => [...cur.filter((x) => x.notice.incident.id !== n.incident.id).slice(-2), { key, notice: n }]);
+      setTimeout(() => setIncToasts((cur) => cur.filter((x) => x.key !== key)), n.severity === "critical" && n.event !== "close" ? 20000 : 9000);
+      if (sound) beep(n.severity === "ok" ? "ok" : n.severity);
+      pushFeed({ id: `i${key}${Date.now()}`, ts: Date.now(), title: n.title, body: n.body.split("\n").slice(0, 2).join(" · "), severity: n.severity, incidentId: n.incident.id, event: n.event });
+      setUnread((c) => c + 1);
+    }).then((f) => { if (dead) f(); else off = f; });
+    return () => { dead = true; off?.(); };
+  }, [pushFeed]);
+  const openIncidents = () => { setUnread(0); setPage({ name: "events", tab: { tab: "open" } }); };
+  const openNotice = (n: IncidentNotice) => {
+    if (n.event === "close" && n.incident.targets[0]) setPage({ name: "events", tab: { tab: "history" } });
+    else openIncidents();
+  };
 
   useEffect(() => {
     let off: (() => void) | undefined;
@@ -314,49 +359,10 @@ export default function App() {
     { label: "Удалить…", danger: true, onClick: () => removeTarget(s) },
   ];
   const title =
-    page.name === "dashboard" ? (group ?? t("Все цели")) : page.name === "events" ? t("Журнал событий") : page.name === "settings" ? t("Настройки") : page.name === "reports" ? t("Отчёт SLA") : page.name === "wallboard" ? t("Табло") : page.name === "map" ? t("Карта сети") : page.name === "compare" ? t("Сравнение") : "";
+    page.name === "dashboard" ? (group ?? t("Все цели")) : page.name === "events" ? t("Инциденты") : page.name === "operators" ? t("Операторы") : page.name === "settings" ? t("Настройки") : page.name === "reports" ? t("Отчёт SLA") : page.name === "wallboard" ? t("Дашборд") : page.name === "map" ? t("Карта сети") : page.name === "compare" ? t("Сравнение") : "";
 
-  void lang; // перерисовка при смене языка
-  return (
-    <div className={"app" + (kiosk && page.name === "wallboard" ? " kiosk" : "") + (collapsed ? " collapsed" : "")}>
-      <aside className={"sidebar" + (isMac || !isTauri ? "" : " win")}>
-        <div className="drag" data-tauri-drag-region onMouseDown={(e) => e.buttons === 1 && e.detail === 1 && api.startDragging()} />
-        <div className="brand">
-          <div className="brand-logo"><Logo /></div>
-          <div className="brand-text"><b>NetPulse</b><small>мониторинг сети</small></div>
-          <button className="side-toggle" onClick={toggleSide} title={collapsed ? "Развернуть панель" : "Свернуть панель"}>
-            <Icon name={collapsed ? "expand" : "collapse"} size={14} />
-          </button>
-        </div>
-        <nav className="nav">
-          <button title="Все цели" className={page.name === "dashboard" && !group ? "active" : ""} onClick={() => { setGroup(null); setPage({ name: "dashboard" }); }}>
-            <Icon name="grid" /> {t("Все цели")} <span className="badge">{items.length}</span>
-          </button>
-          <button title="События" className={page.name === "events" ? "active" : ""} onClick={() => { setUnread(0); setPage({ name: "events" }); }}>
-            <Icon name="bell" /> {t("События")} {unread > 0 && <span className="badge red">{unread}</span>}
-          </button>
-          <button title="Сравнение" className={page.name === "compare" ? "active" : ""} onClick={() => setPage({ name: "compare" })}>
-            <Icon name="chart" /> {t("Сравнение")}
-          </button>
-          <button title="Карта сети" className={page.name === "map" ? "active" : ""} onClick={() => setPage({ name: "map" })}>
-            <Icon name="map" /> {t("Карта сети")}
-          </button>
-          <button title="Табло" className={page.name === "wallboard" ? "active" : ""} onClick={() => setPage({ name: "wallboard" })}>
-            <Icon name="tiles" /> {t("Табло")}
-          </button>
-          <button title="Отчёты" className={page.name === "reports" ? "active" : ""} onClick={() => setPage({ name: "reports" })}>
-            <Icon name="report" /> {t("Отчёты")}
-          </button>
-          <button title="Настройки" className={page.name === "settings" ? "active" : ""} onClick={() => setPage({ name: "settings" })}>
-            <Icon name="gear" /> {t("Настройки")}
-          </button>
-        </nav>
-        <div className="side-head">
-          <div className="side-title">{t("Группы")}</div>
-          <button className="side-add" title="Новая группа" onClick={addGroup}><Icon name="plus" size={14} /></button>
-        </div>
-        <div className="groups nav">
-          {groups.filter(([g, list]) => g !== DEFAULT_GROUP || list.length > 0).map(([g, list]) => {
+  // Кнопка группы: в боковой панели — список, в верхнем меню — полоса (порядок меняется перетаскиванием).
+  const groupBtn = (g: string, list: TargetSummary[], horizontal: boolean) => {
             const isDefault = g === DEFAULT_GROUP;
             const mark = dropMark?.g === g ? (dropMark.after ? " drop-after" : " drop-before") : "";
             return (
@@ -374,7 +380,7 @@ export default function App() {
                     if (dragGroup === g) return setDropMark(null);
                     e.preventDefault();
                     const r = e.currentTarget.getBoundingClientRect();
-                    const after = isDefault ? true : e.clientY > r.top + r.height / 2;
+                    const after = isDefault ? true : horizontal ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
                     if (dropMark?.g !== g || dropMark.after !== after) setDropMark({ g, after });
                   } else if (e.dataTransfer.types.includes("text/netpulse-target")) {
                     e.preventDefault();
@@ -404,7 +410,89 @@ export default function App() {
                 <span className="badge">{list.length}</span>
               </button>
             );
-          })}
+  };
+  const visibleGroups = groups.filter(([g, list]) => g !== DEFAULT_GROUP || list.length > 0);
+
+  // Разделы программы — одни и те же в боковой панели и в верхнем меню.
+  const navButtons = (topNav: boolean) => (
+    <>
+          <button title="Все цели" className={page.name === "dashboard" && !group ? "active" : ""} onClick={() => { setGroup(null); setPage({ name: "dashboard" }); }}>
+            {!topNav && <Icon name="grid" />} {t("Все цели")} <span className="badge">{items.length}</span>
+          </button>
+          <button title="Дашборд" className={page.name === "wallboard" ? "active" : ""} onClick={() => setPage({ name: "wallboard" })}>
+            {!topNav && <Icon name="tiles" />} {t("Дашборд")}
+          </button>
+          <button title="Инциденты" className={page.name === "events" ? "active" : ""} onClick={() => { setUnread(0); setPage({ name: "events" }); }}>
+            {!topNav && <Icon name="bell" />} {t("Инциденты")} {control && openInc > 0 ? <span className="badge red">{openInc}</span> : unread > 0 && <span className="badge">{unread}</span>}
+          </button>
+          <button title="Сравнение" className={page.name === "compare" ? "active" : ""} onClick={() => setPage({ name: "compare" })}>
+            {!topNav && <Icon name="chart" />} {t("Сравнение")}
+          </button>
+          <button title="Карта сети" className={page.name === "map" ? "active" : ""} onClick={() => setPage({ name: "map" })}>
+            {!topNav && <Icon name="map" />} {t("Карта сети")}
+          </button>
+          <button title="Отчёты" className={page.name === "reports" ? "active" : ""} onClick={() => setPage({ name: "reports" })}>
+            {!topNav && <Icon name="report" />} {t("Отчёты")}
+          </button>
+          <button title="Операторы" className={page.name === "operators" ? "active" : ""} onClick={() => setPage({ name: "operators" })}>
+            {!topNav && <Icon name="phone" />} {t("Операторы")}
+          </button>
+          {!topNav && (
+            <button title="Настройки" className={page.name === "settings" ? "active" : ""} onClick={() => setPage({ name: "settings" })}>
+              <Icon name="gear" /> {t("Настройки")}
+            </button>
+          )}
+    </>
+  );
+  const top = theme.layout === "top";
+
+  void lang; // перерисовка при смене языка
+  return (
+    <IncidentControl.Provider value={control}>
+    <div className={"app" + (kiosk && page.name === "wallboard" ? " kiosk" : "") + (collapsed && !top ? " collapsed" : "") + (top ? " top" : "") + (isMac && isTauri ? " mac" : "")}>
+      {top && (
+        <header className="tnav" data-tauri-drag-region onMouseDown={(e) => e.target === e.currentTarget && e.buttons === 1 && e.detail === 1 && api.startDragging()}>
+          <div className="tnav-brand" onMouseDown={(e) => e.buttons === 1 && e.detail === 1 && api.startDragging()}>
+            <div className="brand-logo"><Logo /></div>
+            <b>NetPulse</b>
+          </div>
+          <nav className="tnav-nav">{navButtons(true)}</nav>
+          <div className="tnav-fill" data-tauri-drag-region onMouseDown={(e) => e.buttons === 1 && e.detail === 1 && api.startDragging()} />
+          <div className="tnav-tools">
+            <span className="tnav-engine" title={info ? (info.icmpError ? "ICMP недоступен" : `${t("Движок работает")} · v${info.version}`) : ""}>
+              <span className={"dot " + (info?.icmpError ? "down" : "ok")} style={{ width: 7, height: 7 }} />
+              <span>{info ? `v${info.version}` : "…"}</span>
+            </span>
+            <NoticeBell
+              feed={feed}
+              unread={unread}
+              onSeen={() => { setUnread(0); setIncToasts([]); }}
+              onClear={() => { setFeed([]); saveFeed([]); }}
+              onPick={(f) => (f.incidentId ? setPage({ name: "events", tab: { tab: f.event === "close" ? "history" : "open" } }) : f.targetId ? open(f.targetId) : openIncidents())}
+              onAll={openIncidents}
+            />
+            <button className={"tnav-ico" + (page.name === "settings" ? " on" : "")} title={t("Настройки")} onClick={() => setPage({ name: "settings" })}>
+              <Icon name="gear" size={16} />
+            </button>
+          </div>
+        </header>
+      )}
+      {!top && <aside className={"sidebar" + (isMac || !isTauri ? "" : " win")}>
+        <div className="drag" data-tauri-drag-region onMouseDown={(e) => e.buttons === 1 && e.detail === 1 && api.startDragging()} />
+        <div className="brand">
+          <div className="brand-logo"><Logo /></div>
+          <div className="brand-text"><b>NetPulse</b><small>мониторинг сети</small></div>
+          <button className="side-toggle" onClick={toggleSide} title={collapsed ? "Развернуть панель" : "Свернуть панель"}>
+            <Icon name={collapsed ? "expand" : "collapse"} size={14} />
+          </button>
+        </div>
+        <nav className="nav">{navButtons(false)}</nav>
+        <div className="side-head">
+          <div className="side-title">{t("Группы")}</div>
+          <button className="side-add" title="Новая группа" onClick={addGroup}><Icon name="plus" size={14} /></button>
+        </div>
+        <div className="groups nav">
+          {visibleGroups.map(([g, list]) => groupBtn(g, list, false))}
           {page.name === "target" && (
             <>
               <div className="side-title" style={{ paddingLeft: 10 }}>{t("Цели")}</div>
@@ -423,7 +511,7 @@ export default function App() {
             {info ? (info.icmpError ? "ICMP недоступен" : `${t("Движок работает")} · v${info.version}`) : "…"}
           </span>
         </div>
-      </aside>
+      </aside>}
 
       <main className="main">
         {page.name !== "target" && (
@@ -435,7 +523,14 @@ export default function App() {
             )}
           </div>
         )}
-        {page.name === "target" && <div data-tauri-drag-region style={{ height: isTauri && isMac ? 14 : 0, flex: "none" }} />}
+        {top && page.name === "dashboard" && (
+          <div className="grpbar">
+            <button className={!group ? "active" : ""} onClick={() => setGroup(null)}>{t("Все")}<span className="badge">{items.length}</span></button>
+            {visibleGroups.map(([g, list]) => groupBtn(g, list, true))}
+            <button className="grp-add" title={t("Новая группа")} onClick={addGroup}><Icon name="plus" size={13} /></button>
+          </div>
+        )}
+        {page.name === "target" && !top && <div data-tauri-drag-region style={{ height: isTauri && isMac ? 14 : 0, flex: "none" }} />}
         {update && (
           <div className="update-banner">
             <span>Доступна новая версия NetPulse <b className="c-ok">{update.version}</b> <span className="c-muted">(у вас {update.current})</span></span>
@@ -454,7 +549,7 @@ export default function App() {
         {info?.icmpError && page.name === "dashboard" && (
           <div className="banner">Не удалось открыть ICMP-сокет: {info.icmpError}. Проверки HTTP, TCP и DNS продолжают работать.</div>
         )}
-        <div className="content">
+        <div className="content" key={theme.id}>
           {page.name === "dashboard" && (
             <Dashboard items={items} group={group} onOpen={open} onAdd={() => setModal(null)} onToggle={(s) => api.setEnabled(s.id, !s.enabled).then(refresh)} onContext={onContext} groupOrder={groups.map(([g]) => g)} selected={selected} onSelect={onSelect} onBulk={openBulk} />
           )}
@@ -469,14 +564,16 @@ export default function App() {
               onEdit={(t) => setModal(t)}
               onDeleted={() => { setPage({ name: "dashboard" }); refresh(); }}
               toast={toast}
+              onOperators={(tid) => setPage({ name: "operators", target: tid })}
             />
           )}
-          {page.name === "events" && <Events onOpen={open} refreshKey={refreshKey} />}
+          {page.name === "events" && <Incidents tabReq={page.tab} items={items} onOpen={open} refreshKey={refreshKey} toast={toast} onOperators={(tid) => setPage({ name: "operators", target: tid })} />}
+          {page.name === "operators" && <Operators items={items} groups={groupNames} toast={toast} onOpen={open} focusTarget={page.target ?? null} onFocusDone={() => setPage({ name: "operators" })} />}
           {page.name === "reports" && <Reports onOpen={open} toast={toast} />}
           {page.name === "wallboard" && <Wallboard items={items} onOpen={(id) => { if (kiosk) { setKiosk(false); api.setFullscreen(false).catch(() => {}); } open(id); }} onExit={() => setPage({ name: "dashboard" })} kiosk={kiosk} onKiosk={(v) => { setKiosk(v); if (!v) api.setFullscreen(false).catch(() => {}); }} />}
           {page.name === "map" && <NetworkMap items={items} groups={groupNames} onOpen={open} toast={toast} />}
           {page.name === "compare" && <Compare items={items} onOpen={open} />}
-          {page.name === "settings" && <SettingsPage toast={toast} onImported={() => setRefreshKey((k) => k + 1)} />}
+          {page.name === "settings" && <SettingsPage toast={toast} onImported={() => setRefreshKey((k) => k + 1)} theme={theme.id} onTheme={changeTheme} />}
         </div>
       </main>
 
@@ -507,11 +604,13 @@ export default function App() {
       <PromptHost />
       <GroupDeleteHost />
 
+      <IncidentToasts list={incToasts} onClose={(k) => setIncToasts((c) => c.filter((x) => x.key !== k))} onOpen={openNotice} toast={toast} />
       <div className="toasts">
         {toasts.map((t) => (
           <div key={t.id} className={"toast " + t.kind} onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))}>{t.msg}</div>
         ))}
       </div>
     </div>
+    </IncidentControl.Provider>
   );
 }

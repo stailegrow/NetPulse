@@ -1,23 +1,23 @@
 {
-  "version": "1.1.0",
-  "notes": "NetPulse 1.1.0",
-  "pub_date": "2026-09-25T17:15:59.342Z",
+  "version": "2.0.0",
+  "notes": "NetPulse 2.0\n\n• Инциденты: одна авария — одно уведомление в Телеграме и на компьютере, которое обновляется до восстановления. Короткие обрывы — только в истории.\n• Операторы: справочник провайдеров, ЦОД и подрядчиков — контакты, договоры, услуги. «Кому звонить» на странице узла, в инцидентах и на карте, готовый текст заявки.\n• Отчёты: дашборд со сравнением с прошлым периодом, доступность по группам, простой по дням и часам; таблица постранично.\n• Темы оформления: NetPulse, Графит, Стекло.\n• Лента уведомлений, новые значки событий, свои типы операторов.\n• Контроль и отслеживание инцидентов (взять в работу, заявки, напоминания) — включается в настройках по желанию.",
+  "pub_date": "2026-10-13T11:14:52.096Z",
   "platforms": {
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRZGZhNFd0N1ViS29kZmdzaVNhVFg0NjRmYWM5Tk50KytxU2hySzA0b3NOQjE1N1o0VkViTzkyLzZKeUttaitIWmlUaURTVTN2KzNpMUxSZ3pDQy9GdkFPbDFMU1VsYVE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzU2NTQzCWZpbGU6TmV0UHVsc2UuYXBwLnRhci5negp1dktGWEJtajQzWnJMeHdvWFZVZS9ENEIwTkFmNmU5Q1dNS1lmRVQ5WlBwSkxKRGUyWGFLRHlXM1FhVGVQUDQ5cWZablFHUVE1ajI0R01uV25uVVlDZz09Cg==",
-      "url": "https://github.com/stailegrow/NetPulse/releases/download/v1.1.0/NetPulse_1.1.0_universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRZGZhNFd0N1ViS2ozTU9qeFN4NUllQWtrSnBTVTQwYlUxcDJhWFJmemNqeFV4VGtzYUF6Y2VycmFQaUdkTG9yYVNxZVM4cGw5MjZsY3QzMFI5Yy9oTDViM2gvMkhjL1FrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxODkwMDc2CWZpbGU6TmV0UHVsc2UuYXBwLnRhci5negpVcWt1TUZPTUQyM2VwUlFiOEJZQVo2RzY1ZXRuRlZUdS9xdTNOVjgzSDlXekdOallTai9hUHA3dUZZeWFMOVNhTDJaazVyRlBHTVVLSHZ1UXp1VGpBQT09Cg==",
+      "url": "https://github.com/stailegrow/NetPulse/releases/download/v2.0.0/NetPulse_2.0.0_universal.app.tar.gz"
     },
     "darwin-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRZGZhNFd0N1ViS29kZmdzaVNhVFg0NjRmYWM5Tk50KytxU2hySzA0b3NOQjE1N1o0VkViTzkyLzZKeUttaitIWmlUaURTVTN2KzNpMUxSZ3pDQy9GdkFPbDFMU1VsYVE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzU2NTQzCWZpbGU6TmV0UHVsc2UuYXBwLnRhci5negp1dktGWEJtajQzWnJMeHdvWFZVZS9ENEIwTkFmNmU5Q1dNS1lmRVQ5WlBwSkxKRGUyWGFLRHlXM1FhVGVQUDQ5cWZablFHUVE1ajI0R01uV25uVVlDZz09Cg==",
-      "url": "https://github.com/stailegrow/NetPulse/releases/download/v1.1.0/NetPulse_1.1.0_universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRZGZhNFd0N1ViS2ozTU9qeFN4NUllQWtrSnBTVTQwYlUxcDJhWFJmemNqeFV4VGtzYUF6Y2VycmFQaUdkTG9yYVNxZVM4cGw5MjZsY3QzMFI5Yy9oTDViM2gvMkhjL1FrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxODkwMDc2CWZpbGU6TmV0UHVsc2UuYXBwLnRhci5negpVcWt1TUZPTUQyM2VwUlFiOEJZQVo2RzY1ZXRuRlZUdS9xdTNOVjgzSDlXekdOallTai9hUHA3dUZZeWFMOVNhTDJaazVyRlBHTVVLSHZ1UXp1VGpBQT09Cg==",
+      "url": "https://github.com/stailegrow/NetPulse/releases/download/v2.0.0/NetPulse_2.0.0_universal.app.tar.gz"
     },
     "darwin-universal": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRZGZhNFd0N1ViS29kZmdzaVNhVFg0NjRmYWM5Tk50KytxU2hySzA0b3NOQjE1N1o0VkViTzkyLzZKeUttaitIWmlUaURTVTN2KzNpMUxSZ3pDQy9GdkFPbDFMU1VsYVE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzU2NTQzCWZpbGU6TmV0UHVsc2UuYXBwLnRhci5negp1dktGWEJtajQzWnJMeHdvWFZVZS9ENEIwTkFmNmU5Q1dNS1lmRVQ5WlBwSkxKRGUyWGFLRHlXM1FhVGVQUDQ5cWZablFHUVE1ajI0R01uV25uVVlDZz09Cg==",
-      "url": "https://github.com/stailegrow/NetPulse/releases/download/v1.1.0/NetPulse_1.1.0_universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRZGZhNFd0N1ViS2ozTU9qeFN4NUllQWtrSnBTVTQwYlUxcDJhWFJmemNqeFV4VGtzYUF6Y2VycmFQaUdkTG9yYVNxZVM4cGw5MjZsY3QzMFI5Yy9oTDViM2gvMkhjL1FrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxODkwMDc2CWZpbGU6TmV0UHVsc2UuYXBwLnRhci5negpVcWt1TUZPTUQyM2VwUlFiOEJZQVo2RzY1ZXRuRlZUdS9xdTNOVjgzSDlXekdOallTai9hUHA3dUZZeWFMOVNhTDJaazVyRlBHTVVLSHZ1UXp1VGpBQT09Cg==",
+      "url": "https://github.com/stailegrow/NetPulse/releases/download/v2.0.0/NetPulse_2.0.0_universal.app.tar.gz"
     },
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRZGZhNFd0N1ViS2kyeGNVZDZhSFVpajJGRThCU2gwMXZCbGRDSmgrVG9TL2Z6TVRHQWRPRUdLTUh4cVFmVTk3RUVLU3ZKWUI2NEpyM3k2V3VEM0lLeDNCMm83ZjhzemdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzU2NTQ5CWZpbGU6TmV0UHVsc2VfMS4xLjBfeDY0LXNldHVwLmV4ZQpLbk1XQWxKclQ4K0Jpa05oL2tnbkNVUk9KaWNQQytXU2tYdkdmUFBXZlFxZmZCOVdrZ093aEh3YnVOVVNCUVM2RkZNTUhYQ2QvYWhuenBVcS9zY1FBdz09Cg==",
-      "url": "https://github.com/stailegrow/NetPulse/releases/download/v1.1.0/NetPulse_1.1.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRZGZhNFd0N1ViS3YzKzdKUGFsU3V2ZjVzNTFKaWVJQ1lUcWtVQ0FRUXAvMGRINW5jSE5OT3pIM1NBS29vK2JMWDZybjVGWFVuanVMS2FLWXI2QlBrMWREN1prNDdaWncwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxODkwMDg1CWZpbGU6TmV0UHVsc2VfMi4wLjBfeDY0LXNldHVwLmV4ZQorRUtleitzZEIwd2JzU2d1SlZlaEFwd25PaG10UWozdVNkZGFsbzViL2hoajRGdy9GbWpsVERWSE96WnlnZjN4SGNQSnhJcU50dVJIU1pzRjNkRkhCZz09Cg==",
+      "url": "https://github.com/stailegrow/NetPulse/releases/download/v2.0.0/NetPulse_2.0.0_x64-setup.exe"
     }
   }
 }

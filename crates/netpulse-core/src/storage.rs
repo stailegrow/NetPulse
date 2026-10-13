@@ -1,4 +1,4 @@
-use crate::model::{EventRecord, HeatCell, HopSample, ReportRow, Sample, Settings, Target, TimelinePoint};
+use crate::model::{DowntimeProfile, EventRecord, HeatCell, HopSample, Incident, ReportRow, Sample, Settings, Target, TimelinePoint};
 use anyhow::Result;
 use parking_lot::Mutex;
 use rusqlite::{params, Connection, OptionalExtension};
@@ -44,6 +44,13 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS events_ts ON events(ts);
 CREATE INDEX IF NOT EXISTS events_target_ts ON events(target_id, ts);
+CREATE TABLE IF NOT EXISTS incidents (
+    id TEXT PRIMARY KEY,
+    opened INTEGER NOT NULL,
+    closed INTEGER,
+    json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS incidents_opened ON incidents(opened);
 "#;
 
 pub fn encode_hops(hops: &[HopSample]) -> Vec<u8> {
@@ -211,6 +218,11 @@ impl Storage {
     pub fn get_kv(&self, key: &str) -> Result<Option<String>> {
         let c = self.conn.lock();
         Ok(c.query_row("SELECT value FROM kv WHERE key = ?1", [key], |r| r.get(0)).optional()?)
+    }
+
+    pub fn delete_kv(&self, key: &str) -> Result<()> {
+        self.conn.lock().execute("DELETE FROM kv WHERE key = ?1", [key])?;
+        Ok(())
     }
 
     pub fn set_kv(&self, key: &str, value: &str) -> Result<()> {
@@ -420,6 +432,25 @@ impl Storage {
         Ok(r)
     }
 
+    /// Простой по дням и часам суток (локальное время): минуты, в которые не прошла ни одна проверка.
+    pub fn downtime_profile(&self, id: &str, from: i64, to: i64) -> Result<DowntimeProfile> {
+        use chrono::{TimeZone, Timelike};
+        let rows = self.rollup_rows(id, from, to)?;
+        let mut days: std::collections::BTreeMap<i64, i64> = std::collections::BTreeMap::new();
+        let mut hours = vec![0i64; 24];
+        for (ts, cnt, lost, _, _) in &rows {
+            if *cnt == 0 || lost != cnt {
+                continue;
+            }
+            if let Some(d) = chrono::Local.timestamp_millis_opt(*ts).single() {
+                hours[d.hour() as usize] += 60_000;
+                let start = d.date_naive().and_hms_opt(0, 0, 0).and_then(|n| chrono::Local.from_local_datetime(&n).single()).map(|x| x.timestamp_millis()).unwrap_or(*ts);
+                *days.entry(start).or_default() += 60_000;
+            }
+        }
+        Ok(DowntimeProfile { id: id.to_string(), days: days.into_iter().collect(), hours })
+    }
+
     /// Тепловая карта «день недели × час» (локальное время) по минутным агрегатам.
     pub fn heatmap(&self, id: &str, from: i64, to: i64) -> Result<Vec<HeatCell>> {
         let rows = self.rollup_rows(id, from, to)?;
@@ -524,6 +555,7 @@ impl Storage {
         let roll_cut = now - settings.retention_rollup_days.max(1) as i64 * 86_400_000;
         c.execute("DELETE FROM rollup WHERE ts < ?1", [roll_cut])?;
         c.execute("DELETE FROM events WHERE ts < ?1", [now - 365 * 86_400_000i64])?;
+        c.execute("DELETE FROM incidents WHERE closed IS NOT NULL AND closed < ?1", [now - 365 * 86_400_000i64])?;
         Ok(())
     }
 
@@ -558,6 +590,34 @@ impl Storage {
         Ok(rows.filter_map(|r| r.ok()).collect())
     }
 
+    // ------------------------------------------------------------ incidents
+
+    pub fn save_incident(&self, i: &Incident) -> Result<()> {
+        self.conn.lock().execute(
+            "INSERT INTO incidents(id, opened, closed, json) VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(id) DO UPDATE SET opened = excluded.opened, closed = excluded.closed, json = excluded.json",
+            params![i.id, i.opened, i.closed, serde_json::to_string(i)?],
+        )?;
+        Ok(())
+    }
+
+    /// Инциденты, пересекающиеся с периодом (открытые — всегда), новые сверху.
+    pub fn incidents(&self, from: i64, to: i64, limit: usize) -> Result<Vec<Incident>> {
+        let c = self.conn.lock();
+        let mut st = c.prepare_cached(
+            "SELECT json FROM incidents WHERE opened < ?2 AND (closed IS NULL OR closed >= ?1) ORDER BY opened DESC LIMIT ?3",
+        )?;
+        let rows = st.query_map(params![from, to, limit as i64], |r| r.get::<_, String>(0))?;
+        Ok(rows.filter_map(|r| r.ok()).filter_map(|j| serde_json::from_str(&j).ok()).collect())
+    }
+
+    pub fn open_incidents(&self) -> Result<Vec<Incident>> {
+        let c = self.conn.lock();
+        let mut st = c.prepare_cached("SELECT json FROM incidents WHERE closed IS NULL ORDER BY opened")?;
+        let rows = st.query_map([], |r| r.get::<_, String>(0))?;
+        Ok(rows.filter_map(|r| r.ok()).filter_map(|j| serde_json::from_str(&j).ok()).collect())
+    }
+
     pub fn clear_events(&self) -> Result<()> {
         self.conn.lock().execute("DELETE FROM events", [])?;
         Ok(())
@@ -572,6 +632,7 @@ impl Storage {
             tx.execute("DELETE FROM rollup", [])?;
             if with_events {
                 tx.execute("DELETE FROM events", [])?;
+                tx.execute("DELETE FROM incidents", [])?;
             }
             tx.commit()?;
         }

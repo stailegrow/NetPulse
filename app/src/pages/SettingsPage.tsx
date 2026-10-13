@@ -9,10 +9,12 @@ import { Field, NumInput, ThresholdFields, Toggle } from "../components/ui";
 import { beep } from "../sound";
 import { ask } from "../components/Dialogs";
 import { setLang, t } from "../i18n";
+import { THEMES, type ThemeDef } from "../theme";
 
-type TabKey = "general" | "alerts" | "templates" | "data" | "updates" | "about";
+type TabKey = "general" | "theme" | "alerts" | "templates" | "data" | "updates" | "about";
 const TABS: { k: TabKey; l: string }[] = [
   { k: "general", l: "Общие" },
+  { k: "theme", l: "Тема" },
   { k: "alerts", l: "Уведомления" },
   { k: "templates", l: "Шаблоны" },
   { k: "data", l: "Данные" },
@@ -20,7 +22,7 @@ const TABS: { k: TabKey; l: string }[] = [
   { k: "about", l: "О программе" },
 ];
 
-export function SettingsPage({ toast, onImported }: { toast: (m: string, k?: string) => void; onImported: () => void }) {
+export function SettingsPage({ toast, onImported, theme, onTheme }: { toast: (m: string, k?: string) => void; onImported: () => void; theme: string; onTheme: (id: string) => void }) {
   const [tab, setTab] = useState<TabKey>(() => {
     try { return (localStorage.getItem("np.settingsTab") as TabKey) || "general"; } catch { return "general"; }
   });
@@ -161,6 +163,34 @@ export function SettingsPage({ toast, onImported }: { toast: (m: string, k?: str
         ))}
       </div>
 
+      {tab === "theme" && (
+        <div className="card">
+          <h3>{t("Тема оформления")}</h3>
+          <div className="desc">{t("Меняет цвета, шрифты, форму карточек и расположение меню. Применяется сразу и сохраняется. Цвета состояний везде означают одно и то же: зелёный — норма, жёлтый — внимание, красный — авария.")}</div>
+          <div className="theme-pick">
+            {THEMES.map((th) => (
+              <button key={th.id} className={"theme-card" + (theme === th.id ? " on" : "")} onClick={async () => {
+                if (theme === th.id) return;
+                onTheme(th.id);
+                try {
+                  const cur = await api.settings();
+                  await api.saveSettings({ ...cur, theme: th.id });
+                  setS((x) => (x ? { ...x, theme: th.id } : x));
+                  setOrig((o) => { try { return JSON.stringify({ ...JSON.parse(o), theme: th.id }); } catch { return o; } });
+                } catch (e) { toast(String(e), "error"); }
+              }}>
+                <ThemePreview th={th} />
+                <div className="theme-meta">
+                  <b>{th.name}</b>
+                  {theme === th.id && <span className="theme-on">{t("выбрана")}</span>}
+                </div>
+                <small>{t(th.desc)}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {tab === "general" && (
         <>
 
@@ -226,9 +256,9 @@ export function SettingsPage({ toast, onImported }: { toast: (m: string, k?: str
           <Field label={t("Предупреждать об истечении SSL за, дней")} hint={t("0 — не проверять")}>
             <NumInput value={rules.certDays} min={0} max={365} onChange={(v) => setRules({ certDays: v })} />
           </Field>
-          <Field label={t("Повторять напоминание каждые, мин")} hint={t("0 — только одно уведомление на проблему")}>
+          {s.incidentControl && <Field label={t("Напоминать о невзятых инцидентах каждые, мин")} hint={t("0 — не напоминать; напоминание приходит ответом на сообщение инцидента")}>
             <NumInput value={rules.repeatMinutes} min={0} max={1440} onChange={(v) => setRules({ repeatMinutes: v })} />
-          </Field>
+          </Field>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 16 }}>
           <Toggle checked={rules.lossEnabled} onChange={(v) => setRules({ lossEnabled: v })} label={t("Потери выше «красного» порога")} />
@@ -238,6 +268,45 @@ export function SettingsPage({ toast, onImported }: { toast: (m: string, k?: str
         </div>
       </div>
 
+
+      <div className="card">
+        <h3>{t("Инциденты: когда и как сообщать")}</h3>
+        <div className="desc">{t("Проблемы склеиваются в инциденты: падение площадки — один инцидент и одно сообщение, которое потом обновляется до восстановления.")}</div>
+        <div className="field" style={{ margin: "4px 0 14px" }}>
+          <Toggle checked={s.incidentControl} onChange={(v) => setS({ ...s, incidentControl: v })} label={t("Контроль и отслеживание инцидентов")} />
+          <small className="hint">{t("«Взять в работу», «никто не взял», тишина, отметка заявки, напоминания, кнопки и команды бота в Телеграме. Выключено — инциденты только объединяют уведомления: одно сообщение на аварию и отметка о восстановлении.")}</small>
+        </div>
+        <div className="form-grid three">
+          <Field label={t("Сообщать, если проблема дольше, сек")} hint={t("короче — только в историю, без сообщений")}>
+            <NumInput value={rules.notifyDelaySec} min={0} max={3600} onChange={(v) => setRules({ notifyDelaySec: v })} />
+          </Field>
+          <Field label={t("Кто дежурит за этим компьютером")} hint={t("подставляется в «взял в работу» и в подпись заявки")}>
+            <input className="input" value={s.dutyName} placeholder={t("Имя и фамилия")} onChange={(e) => setS({ ...s, dutyName: e.target.value })} />
+          </Field>
+          <Field label={t("Контакт для оператора")} hint={t("телефон или почта в конце заявки")}>
+            <input className="input" value={s.dutyContact} placeholder="+7 900 000-00-00" onChange={(e) => setS({ ...s, dutyContact: e.target.value })} />
+          </Field>
+        </div>
+        <div className="form-grid three" style={{ marginTop: 14, alignItems: "end" }}>
+          <div className="field">
+            <Toggle checked={rules.quietEnabled} onChange={(v) => setRules({ quietEnabled: v })} label={t("Ночной режим: только аварии")} />
+            <small className="hint">{t("ухудшения ночью не присылаются, они попадут в утреннюю сводку")}</small>
+          </div>
+          <Field label={t("Ночь с, час")}>
+            <NumInput value={rules.quietFrom} min={0} max={23} onChange={(v) => setRules({ quietFrom: v })} />
+          </Field>
+          <Field label={t("до, час")}>
+            <NumInput value={rules.quietTo} min={0} max={23} onChange={(v) => setRules({ quietTo: v })} />
+          </Field>
+          <div className="field">
+            <Toggle checked={rules.digestEnabled} onChange={(v) => setRules({ digestEnabled: v })} label={t("Утренняя сводка в Телеграм")} />
+            <small className="hint">{t("что было с прошлой сводки и что ещё открыто")}</small>
+          </div>
+          <Field label={t("Время сводки, час")}>
+            <NumInput value={rules.digestHour} min={0} max={23} onChange={(v) => setRules({ digestHour: v })} />
+          </Field>
+        </div>
+      </div>
 
       <div className="card">
         <h3>{t("Уведомления на этом компьютере")}</h3>
@@ -255,6 +324,10 @@ export function SettingsPage({ toast, onImported }: { toast: (m: string, k?: str
           <Field label={t("Токен бота")}><input className="input num" type="password" value={ch.telegram.botToken} onChange={(e) => setCh({ telegram: { ...ch.telegram, botToken: e.target.value.trim() } })} placeholder="123456:ABC-DEF…" /></Field>
           <Field label="Chat ID"><input className="input num" value={ch.telegram.chatId} onChange={(e) => setCh({ telegram: { ...ch.telegram, chatId: e.target.value.trim() } })} placeholder="-1001234567890" /></Field>
         </div>
+        {s.incidentControl && <div style={{ marginTop: 14, display: "grid", gap: 6 }}>
+          <Toggle checked={ch.telegram.interactive} onChange={(v) => setCh({ telegram: { ...ch.telegram, interactive: v } })} label={t("Этот компьютер отвечает на кнопки и команды бота")} />
+          <small className="hint" style={{ color: "var(--muted)", fontSize: 11.5 }}>{t("Кнопки «Беру», «Тишина 1 ч», «Заявка» под сообщениями и команды /status, /who работают, пока запущена эта программа. Если NetPulse стоит на нескольких компьютерах с одним ботом, включите это только на одном.")}</small>
+        </div>}
       </div>
 
 
@@ -526,14 +599,71 @@ export function SettingsPage({ toast, onImported }: { toast: (m: string, k?: str
         </>
       )}
 
-      <div className="save-bar">
-        <button className="btn primary" onClick={save} disabled={!dirty}>{t("Сохранить настройки")}</button>
-        {dirty && <span className="c-warn">{t("Есть несохранённые изменения")}</span>}
-      </div>
+      {(tab !== "theme" || dirty) && (
+        <div className="save-bar">
+          <button className="btn primary" onClick={save} disabled={!dirty}>{t("Сохранить настройки")}</button>
+          {dirty && <span className="c-warn">{t("Есть несохранённые изменения")}</span>}
+        </div>
+      )}
     </div>
   );
 }
 
 function isTauriLabel() {
   return isTauri ? (navigator.userAgent.includes("Mac") ? "Уведомления macOS" : "Уведомления Windows") : "Системные уведомления";
+}
+
+
+/** Миниатюра темы: фон, меню (сбоку или сверху), карточки, акцент и цвета состояний. */
+function ThemePreview({ th }: { th: ThemeDef }) {
+  const [bg, card, accent, accent2, text] = th.swatch;
+  const v = th.vars;
+  const r = th.id === "graphite" ? 6 : th.id === "glass" ? 5 : 3;
+  const pageBg = v["--page-bg"];
+  const st = [v["--ok"], v["--warn"], v["--down"]];
+  return (
+    <div className="theme-prev" style={{ background: pageBg.includes("gradient") ? pageBg : bg }}>
+      <svg viewBox="0 0 200 120" width="100%" height="100%" preserveAspectRatio="none">
+        {th.layout === "side" ? (
+          <>
+            <rect x="0" y="0" width="44" height="120" fill={card} />
+            <rect x="8" y="10" width="10" height="10" rx="2" fill="#0b0f12" stroke="#27303a" strokeWidth="0.6" />
+            <polyline points="9.5,15.5 11.5,15.5 12.5,13 13.8,18 15,12.5 16.5,15.5" fill="none" stroke="#35e08a" strokeWidth="0.9" strokeLinejoin="round" />
+            {[30, 42, 54, 66].map((y, i) => <rect key={y} x="8" y={y} width={i === 0 ? 28 : 24} height="6" rx="2" fill={i === 0 ? accent : text} opacity={i === 0 ? 0.9 : 0.25} />)}
+            {[84, 94, 104].map((y, i) => <circle key={y} cx="11" cy={y + 3} r="2.4" fill={st[i]} />)}
+          </>
+        ) : (
+          <>
+            <rect x="8" y="8" width="10" height="10" rx="2" fill="#0b0f12" stroke="#27303a" strokeWidth="0.6" />
+            <polyline points="9.5,13.5 11.5,13.5 12.5,11 13.8,16 15,10.5 16.5,13.5" fill="none" stroke="#35e08a" strokeWidth="0.9" strokeLinejoin="round" />
+            {[60, 84, 108, 132].map((x, i) => (
+              th.id === "glass"
+                  ? <rect key={x} x={x} y="7" width="21" height="12" rx="3" fill={i === 0 ? accent : "#ffffff"} opacity={i === 0 ? 1 : 0.12} stroke="#ffffff" strokeOpacity="0.2" strokeWidth="0.6" />
+                  : <g key={x}><rect x={x} y="10" width="18" height="5" rx="2" fill={i === 0 ? accent : text} opacity={i === 0 ? 1 : 0.35} />{i === 0 && <rect x={x + 5} y="18" width="8" height="1.6" rx="1" fill={accent} />}</g>
+            ))}
+            <circle cx="180" cy="13" r="5" fill="#ffffff" opacity="0.15" />
+          </>
+        )}
+        {(() => {
+          const x0 = th.layout === "side" ? 54 : 10, y0 = th.layout === "side" ? 10 : 30, w = 200 - x0 - 10;
+          const cw = (w - 12) / 3;
+          return (
+            <>
+              {[0, 1, 2].map((i) => (
+                <g key={i}>
+                  <rect x={x0 + i * (cw + 6)} y={y0} width={cw} height="26" rx={r} fill={card} opacity={th.id === "glass" ? 0.55 : 1} stroke={th.id === "glass" ? "#ffffff" : "none"} strokeOpacity="0.25" strokeWidth="0.6" />
+                  <rect x={x0 + i * (cw + 6) + 6} y={y0 + 7} width={cw * 0.45} height="5" rx="2" fill={text} opacity="0.85" />
+                  <circle cx={x0 + i * (cw + 6) + cw - 9} cy={y0 + 9.5} r="2.6" fill={st[i]} />
+                  <rect x={x0 + i * (cw + 6) + 6} y={y0 + 16} width={cw * 0.3} height="4" rx="2" fill={text} opacity="0.35" />
+                </g>
+              ))}
+              <rect x={x0} y={y0 + 34} width={w} height={120 - y0 - 44} rx={r} fill={card} opacity={th.id === "glass" ? 0.55 : 1} stroke={th.id === "glass" ? "#ffffff" : "none"} strokeOpacity="0.25" strokeWidth="0.6" />
+              <polyline fill="none" stroke={th.id === "pulse" ? v["--ok"] : accent2} strokeWidth="1.6" strokeLinejoin="round"
+                points={[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => `${x0 + 8 + i * ((w - 16) / 8)},${y0 + 34 + (120 - y0 - 44) * (0.75 - 0.45 * Math.abs(Math.sin(i * 1.3 + 0.4)))}`).join(" ")} />
+            </>
+          );
+        })()}
+      </svg>
+    </div>
+  );
 }

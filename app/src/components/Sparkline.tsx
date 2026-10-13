@@ -21,7 +21,7 @@ export function Sparkline({ data, th, width = 150, height = 26 }: { data: (numbe
   const color = vals.length ? LEVEL_COLOR[latencyLevel(vals[vals.length - 1], th)] : "var(--ok)";
   return (
     <svg width={width} height={height} style={{ display: "block" }}>
-      {warnY != null && <line x1={0} x2={width} y1={warnY} y2={warnY} stroke="rgba(242,193,78,.18)" strokeDasharray="2 3" />}
+      {warnY != null && <line x1={0} x2={width} y1={warnY} y2={warnY} stroke="var(--warn)" strokeOpacity={0.25} strokeDasharray="2 3" />}
       {data.map((v, i) => v == null ? <rect key={i} x={(i + off) * dx - 1} y={0} width={2} height={height} fill="var(--down)" opacity={0.85} /> : null)}
       <path d={path} fill="none" stroke={color} strokeWidth={1.4} strokeLinejoin="round" />
     </svg>

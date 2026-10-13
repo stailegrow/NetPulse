@@ -2534,7 +2534,7 @@ dependencies = [
 
 [[package]]
 name = "netpulse"
-version = "1.1.0"
+version = "2.0.0"
 dependencies = [
  "log",
  "netpulse-core",
@@ -2553,11 +2553,12 @@ dependencies = [
 
 [[package]]
 name = "netpulse-core"
-version = "1.1.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "chrono",
  "dns-lookup",
+ "flate2",
  "futures",
  "lettre",
  "log",
@@ -2577,7 +2578,7 @@ dependencies = [
 
 [[package]]
 name = "netpulse-icmp"
-version = "1.1.0"
+version = "2.0.0"
 dependencies = [
  "libc",
  "socket2 0.5.10",

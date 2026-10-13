@@ -1,5 +1,6 @@
 import type {
   AlertPayload,
+  IncidentPayload,
   DuplicatePair,
   HeatCell,
   HopSeries,
@@ -14,6 +15,15 @@ import type {
   TraceView,
   Diagnosis,
   Topology,
+  ScanInfo,
+  ScanProgress,
+  ScanResult,
+  SubnetHint,
+  Incident,
+  Operator,
+  TargetOperator,
+  TicketDraft,
+  DowntimeProfile,
 } from "./types";
 import { mock } from "./mock";
 
@@ -50,6 +60,22 @@ export const api = {
   timelines: (ids: string[], from: number, to: number, points: number) =>
     call<Record<string, TimelinePoint[]>>("get_timelines", { ids, from, to, points }),
   uptime: (id: string, hours: number) => call<number | null>("get_uptime", { id, hours }),
+  incidents: (from: number, to: number, limit = 500) => call<Incident[]>("get_incidents", { from, to, limit }),
+  incidentAck: (id: string) => call<Incident>("incident_ack", { id }),
+  incidentMute: (id: string, minutes: number) => call<Incident>("incident_mute", { id, minutes }),
+  incidentTicket: (id: string, operatorId: string, number: string) => call<Incident>("incident_ticket", { id, operatorId, number }),
+  incidentNote: (id: string, text: string) => call<Incident>("incident_note", { id, text }),
+  ticketDraft: (p: { incidentId?: string | null; targetId?: string | null; operatorId?: string | null }) =>
+    call<TicketDraft>("ticket_draft", { incidentId: p.incidentId ?? null, targetId: p.targetId ?? null, operatorId: p.operatorId ?? null }),
+  operators: () => call<Operator[]>("list_operators"),
+  saveOperator: (operator: Operator) => call<Operator>("save_operator", { operator }),
+  deleteOperator: (id: string) => call<void>("delete_operator", { id }),
+  targetOperators: (id: string) => call<TargetOperator[]>("target_operators", { id }),
+  openLink: async (url: string) => {
+    if (!isTauri) { window.open(url, "_blank"); return; }
+    return call<void>("open_link", { url });
+  },
+  downtimeProfiles: (from: number, to: number) => call<DowntimeProfile[]>("downtime_profiles", { from, to }),
   events: (limit: number, targetId?: string | null) => call<EventRecord[]>("get_events", { limit, targetId: targetId ?? null }),
   clearHistory: (withEvents: boolean) => call<void>("clear_history", { withEvents }),
   historyStats: () => call<{ samples: number; rollups: number; events: number; dbBytes: number }>("history_stats"),
@@ -58,6 +84,7 @@ export const api = {
   saveSettings: (settings: Settings) => call<void>("save_settings", { settings }),
   testChannel: (channel: string) => call<void>("test_channel", { channel }),
   testSystemNotification: () => call<void>("test_system_notification"),
+  incidentDemo: () => call<string>("incident_demo"),
   findDuplicates: () => call<DuplicatePair[]>("find_duplicates"),
   mergeDuplicates: (pairs: DuplicatePair[]) => call<number>("merge_duplicates", { pairs }),
   report: (from: number, to: number) => call<ReportRow[]>("get_report", { from, to }),
@@ -67,6 +94,12 @@ export const api = {
   installUpdate: () => call<void>("install_update"),
   updateSource: () => call<string | null>("update_source"),
   topology: () => call<Topology>("get_topology"),
+  scanSubnets: () => call<SubnetHint[]>("scan_subnets"),
+  scanStart: (subnets: string[]) => call<void>("scan_start", { subnets }),
+  scanProgress: () => call<ScanProgress>("scan_progress"),
+  scanStop: () => call<void>("scan_stop"),
+  scanLast: () => call<string | null>("scan_last").then((j) => (j ? (JSON.parse(j) as ScanResult) : null)),
+  scanList: () => call<ScanInfo[]>("scan_list"),
   mapLayout: () => call<string | null>("get_map_layout"),
   saveMapLayout: (layout: string) => call<void>("save_map_layout", { layout }),
   projectPage: () => call<string | null>("project_page"),
@@ -116,6 +149,12 @@ export const api = {
     const path = await open({ multiple: false, filters: [{ name: "JSON", extensions: ["json"] }] });
     if (!path || Array.isArray(path)) return null;
     return call<number>("import_config", { path, replace });
+  },
+
+  async onIncident(cb: (p: IncidentPayload) => void): Promise<() => void> {
+    if (!isTauri) return mock.onIncident(cb);
+    const { listen } = await import("@tauri-apps/api/event");
+    return listen<IncidentPayload>("incident", (e) => cb(e.payload));
   },
 
   async onAlert(cb: (p: AlertPayload) => void): Promise<() => void> {

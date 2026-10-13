@@ -477,7 +477,7 @@ const EN: Record<string, string> = {
   "Статус сайта": "Site status",
   "Считаю отчёт…": "Building the report…",
   "Таблица": "Table",
-  "Табло": "Wallboard",
+  "Дашборд": "Dashboard",
   "Таймаут, мс": "Timeout, ms",
   "Тек.": "Now",
   "Текущ., мс": "Now, ms",

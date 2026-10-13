@@ -5,7 +5,8 @@ import type { TargetSummary, TimelinePoint } from "../types";
 import { KIND_LABEL } from "../types";
 import { fmtMs, fmtPct } from "../format";
 import { Dot, Icon } from "../components/ui";
-import { MultiTimeline, SERIES_COLORS } from "../components/MultiTimeline";
+import { MultiTimeline } from "../components/MultiTimeline";
+import { seriesColor } from "../theme";
 import type { Metric, Series } from "../components/MultiTimeline";
 
 const RANGES = [
@@ -68,7 +69,7 @@ export function Compare({ items, onOpen }: { items: TargetSummary[]; onOpen: (id
     api.timelines(ids, from, to, points).then(setData).catch(() => {});
   }, [ids.join(","), from, to]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const color = (id: string) => SERIES_COLORS[Math.max(0, ids.indexOf(id)) % SERIES_COLORS.length];
+  const color = (id: string) => seriesColor(Math.max(0, ids.indexOf(id)));
   const series: Series[] = ids
     .filter((id) => !hidden.has(id))
     .map((id) => {
@@ -137,7 +138,7 @@ export function Compare({ items, onOpen }: { items: TargetSummary[]; onOpen: (id
             <button className={metric === "loss" ? "on" : ""} onClick={() => setMetric("loss")}>{t("Потери")}</button>
           </div>
           {zoom && (
-            <span className="pill" style={{ color: "var(--info)", borderColor: "rgba(90,169,255,.35)" }}>
+            <span className="pill" style={{ color: "var(--info)", borderColor: "rgba(var(--info-rgb),.35)" }}>
               Приближено
               <button className="btn ghost sm" style={{ height: 18, padding: "0 4px" }} onClick={() => setZoom(null)}>✕</button>
             </span>

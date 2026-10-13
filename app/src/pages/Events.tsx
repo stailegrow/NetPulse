@@ -4,6 +4,7 @@ import { api } from "../api";
 import type { EventRecord } from "../types";
 import { fmtDateTime, plural } from "../format";
 import { ask } from "../components/Dialogs";
+import { EvIcon, stripMark } from "../components/ui";
 
 const SEV: Record<string, { l: string; c: string }> = {
   critical: { l: "Критично", c: "c-down" },
@@ -54,9 +55,9 @@ export function Events({ onOpen, refreshKey }: { onOpen: (id: string, at?: numbe
           {list.map((e) => (
             <div className="ev" key={e.id}>
               <span className="ts">{fmtDateTime(e.ts)}</span>
-              <span className={SEV[e.severity]?.c ?? "c-muted"} title={t(SEV[e.severity]?.l ?? "")}>●</span>
+              <span title={t(SEV[e.severity]?.l ?? "")}><EvIcon kind={e.kind} severity={e.severity} /></span>
               <span>
-                <span className={"msg" + (e.severity === "route" ? " c-route" : "")}>{e.message}</span>
+                <span className={"msg" + (e.severity === "route" ? " c-route" : "")}>{stripMark(e.message)}</span>
                 {e.targetId && <span className="tg" onClick={() => onOpen(e.targetId!, e.ts)} title={t("Открыть график ±5 минут от события")}>{t("открыть →")}</span>}
               </span>
             </div>

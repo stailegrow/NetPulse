@@ -1,16 +1,19 @@
 import { t } from "../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
-import type { Diagnosis, EventRecord, HeatCell, HopSeries, Target, TargetSummary, TimelinePoint, TraceView } from "../types";
-import { MultiTimeline, SERIES_COLORS } from "../components/MultiTimeline";
+import type { Diagnosis, EventRecord, HeatCell, HopSeries, Incident, Target, TargetOperator, TargetSummary, TimelinePoint, TraceView } from "../types";
+import { OperatorCard, TicketModal } from "../components/OperatorCard";
+import { MultiTimeline } from "../components/MultiTimeline";
+import { seriesColor } from "../theme";
 import { Heatmap } from "../components/Heatmap";
 import { HEALTH_LABEL, KIND_LABEL } from "../types";
 import { fmtDateTime, fmtMs, fmtPct, fmtTime, latencyClass, lossClass } from "../format";
 import { Timeline } from "../components/Timeline";
 import { LatencyBar } from "../components/LatencyBar";
-import { RouteBadge, Dot, Icon, MutedBadge } from "../components/ui";
+import { RouteBadge, Dot, EvIcon, Icon, MutedBadge, stripMark } from "../components/ui";
 import { ask } from "../components/Dialogs";
 import { DiagnosisCard } from "../components/DiagnosisCard";
+import { useIncidentControl } from "../control";
 
 const RANGES: { l: string; ms: number }[] = [
   { l: "5 мин", ms: 5 * 60e3 },
@@ -30,6 +33,8 @@ interface Props {
   onEdit: (t: Target) => void;
   onDeleted: () => void;
   toast: (msg: string, kind?: string) => void;
+  /** Открыть справочник операторов, чтобы назначить оператора этой цели. */
+  onOperators?: (targetId: string) => void;
   /** Момент события: показать график ±5 минут вокруг него. */
   at?: number;
   onToggleMute: () => void;
@@ -37,7 +42,21 @@ interface Props {
 
 const AROUND_MS = 5 * 60e3;
 
-export function TargetDetail({ id, summary: s, onBack, onEdit, onDeleted, toast, at, onToggleMute }: Props) {
+export function TargetDetail({ id, summary: s, onBack, onEdit, onDeleted, toast, at, onToggleMute, onOperators }: Props) {
+  const [ops, setOps] = useState<TargetOperator[] | null>(null);
+  const control = useIncidentControl();
+  const [openInc, setOpenInc] = useState<Incident | null>(null);
+  const [ticketOp, setTicketOp] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      api.targetOperators(id).then((x) => alive && setOps(x)).catch(() => alive && setOps([]));
+      api.incidents(Date.now(), Date.now() + 1, 50).then((l) => alive && setOpenInc(l.find((i) => i.closed == null && i.targets.some((x) => x.id === id && x.until == null)) ?? null)).catch(() => {});
+    };
+    load();
+    const h = setInterval(load, 15000);
+    return () => { alive = false; clearInterval(h); };
+  }, [id]);
   const [range, setRange] = useState(() => {
     if (at) return 2 * AROUND_MS;
     try { return Number(localStorage.getItem("np.range")) || 10 * 60e3; } catch { return 10 * 60e3; }
@@ -261,12 +280,12 @@ export function TargetDetail({ id, summary: s, onBack, onEdit, onDeleted, toast,
         </div>
         <div className="chips">
           <button onClick={() => shift(-1)} title={t("Назад во времени")}>◀</button>
-          <button className={live ? "on" : ""} onClick={() => { setEnd(null); setFocus(null); }} style={live ? { color: "var(--accent)" } : undefined}>{t("● Сейчас")}</button>
+          <button className={live ? "on" : ""} onClick={() => { setEnd(null); setFocus(null); }} ><span className={live ? "c-ok" : ""}>●</span> {t("Сейчас")}</button>
           <button onClick={() => shift(1)} disabled={live} title={t("Вперёд")}>▶</button>
         </div>
         <span className="c-muted num" style={{ fontSize: 12 }}>{fmtDateTime(from)} — {live ? "сейчас" : fmtDateTime(to)}</span>
         {focus && (
-          <span className="pill" style={{ color: "var(--info)", borderColor: "rgba(90,169,255,.35)" }}>
+          <span className="pill" style={{ color: "var(--info)", borderColor: "rgba(var(--info-rgb),.35)" }}>
             Приближено: {fmtTime(focus[0])} – {fmtTime(focus[1])}
             <button className="btn ghost sm" style={{ height: 18, padding: "0 4px" }} onClick={() => setFocus(null)}>✕</button>
           </span>
@@ -275,9 +294,25 @@ export function TargetDetail({ id, summary: s, onBack, onEdit, onDeleted, toast,
         <span className="c-muted" style={{ fontSize: 11.5 }}>{t("Выделите участок графика мышью — график приблизится к нему · двойной клик или ✕ — весь период")}</span>
       </div>
 
-      <div className="section" style={{ paddingBottom: 0 }}>
-        <DiagnosisCard hops={isTrace} d={diag} loading={diagBusy} error={diagError} frozen={!!focus} onRefresh={() => { load(); setDiagTick((x) => x + 1); }} onHop={(t) => { if (isTrace) setTtl(t); }} />
+      <div className="section td-split" style={{ paddingBottom: 0 }}>
+        <div style={{ minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
+          {openInc && (
+            <div className="td-inc">
+              <span className={"dot " + (openInc.severity === "critical" ? "down" : "warn")} />
+              <span style={{ flex: 1, minWidth: 0 }}><b>{t("Открыт инцидент")}:</b> {openInc.title}{control && (openInc.ackBy ? ` · ${t("взял")} ${openInc.ackBy}` : ` · ${t("никто не взял")}`)}{control && openInc.ticket?.number ? ` · № ${openInc.ticket.number}` : ""}</span>
+              {control && !openInc.ackBy && <button className="btn sm primary" onClick={() => api.incidentAck(openInc.id).then(setOpenInc).then(() => toast(t("Взято в работу"), "ok")).catch((e) => toast(String(e), "error"))}><Icon name="hand" size={13} />{t("Взять в работу")}</button>}
+            </div>
+          )}
+          <DiagnosisCard hops={isTrace} d={diag} loading={diagBusy} error={diagError} frozen={!!focus} onRefresh={() => { load(); setDiagTick((x) => x + 1); }} onHop={(t) => { if (isTrace) setTtl(t); }} />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div className="section-title" style={{ marginBottom: 8 }}>{t("Кому звонить")}</div>
+          {ops === null ? <div className="c-muted">{t("Загружаю…")}</div> : (
+            <OperatorCard list={ops} onTicket={(op) => setTicketOp(op)} onManage={() => onOperators?.(id)} />
+          )}
+        </div>
       </div>
+      {ticketOp !== undefined && <TicketModal incident={openInc} targetId={id} operatorId={ticketOp} onClose={() => setTicketOp(undefined)} onSaved={setOpenInc} toast={toast} />}
 
       {isTrace && (
         <div className="section">
@@ -378,7 +413,7 @@ export function TargetDetail({ id, summary: s, onBack, onEdit, onDeleted, toast,
                 <MultiTimeline
                   series={hopSeries
                     .filter((h) => !hiddenHops.has(h.ttl) && h.points.some((p) => p.avg != null))
-                    .map((h) => ({ id: String(h.ttl), label: `${h.ttl} · ${h.hostname ?? h.addr ?? "* * *"}`, color: SERIES_COLORS[(h.ttl - 1) % SERIES_COLORS.length], points: h.points }))
+                    .map((h) => ({ id: String(h.ttl), label: `${h.ttl} · ${h.hostname ?? h.addr ?? "* * *"}`, color: seriesColor((h.ttl - 1)), points: h.points }))
 }
                   from={vFrom}
                   to={vTo}
@@ -389,7 +424,7 @@ export function TargetDetail({ id, summary: s, onBack, onEdit, onDeleted, toast,
                 <div className="series-legend">
                   {hopSeries.filter((h) => h.points.some((p) => p.avg != null)).map((h) => (
                     <button key={h.ttl} className={hiddenHops.has(h.ttl) ? "off" : ""} title={h.addr ?? ""} onClick={() => setHiddenHops((cur) => { const n = new Set(cur); if (n.has(h.ttl)) n.delete(h.ttl); else n.add(h.ttl); return n; })}>
-                      <i style={{ background: SERIES_COLORS[(h.ttl - 1) % SERIES_COLORS.length] }} /><span>{h.ttl} · {h.hostname ?? h.addr}</span>
+                      <i style={{ background: seriesColor((h.ttl - 1)) }} /><span>{h.ttl} · {h.hostname ?? h.addr}</span>
                     </button>
                   ))}
                   {hopSeries.length > 0 && (
@@ -428,11 +463,11 @@ export function TargetDetail({ id, summary: s, onBack, onEdit, onDeleted, toast,
             <>
               <Heatmap cells={heat} metric={heatMetric === "avg" && s.kind === "http" ? "loss" : heatMetric} th={th} />
               <div className="hm-legend" style={{ marginTop: 8 }}>
-                <span><i style={{ background: "rgba(53,224,138,0.3)" }} />{t("норма")}</span>
-                <span><i style={{ background: "rgba(242,193,78,0.55)" }} />{heatMetric === "loss" ? `${t("потери")} > ${th.warnLoss}%` : `> ${th.warnMs} мс`}</span>
-                {heatMetric === "avg" && <span><i style={{ background: "rgba(255,145,71,0.6)" }} />{`> ${th.badMs} мс`}</span>}
-                <span><i style={{ background: "rgba(255,77,94,0.75)" }} />{heatMetric === "loss" ? `${t("потери")} > ${th.badLoss}%` : `> ${th.critMs} мс`}</span>
-                <span><i style={{ background: "rgba(255,255,255,0.05)" }} />{t("нет данных")}</span>
+                <span><i style={{ background: "rgba(var(--ok-rgb),0.3)" }} />{t("норма")}</span>
+                <span><i style={{ background: "rgba(var(--warn-rgb),0.55)" }} />{heatMetric === "loss" ? `${t("потери")} > ${th.warnLoss}%` : `> ${th.warnMs} мс`}</span>
+                {heatMetric === "avg" && <span><i style={{ background: "rgba(var(--bad-rgb),0.6)" }} />{`> ${th.badMs} мс`}</span>}
+                <span><i style={{ background: "rgba(var(--down-rgb),0.75)" }} />{heatMetric === "loss" ? `${t("потери")} > ${th.badLoss}%` : `> ${th.critMs} мс`}</span>
+                <span><i style={{ background: "rgba(var(--fg-rgb),0.05)" }} />{t("нет данных")}</span>
                 <span style={{ marginLeft: "auto" }}>{t("дни и часы по местному времени · наведите на ячейку")}</span>
               </div>
             </>
@@ -443,9 +478,10 @@ export function TargetDetail({ id, summary: s, onBack, onEdit, onDeleted, toast,
       <div className="section" style={{ paddingTop: 0 }}>
         <div className="section-title">{t("События цели")} <span className="sub">{shownEvents.length ? "" : "пока нет"}</span></div>
         {shownEvents.map((e) => (
-          <div key={e.id} className="ev ev-click" style={{ gridTemplateColumns: "150px 1fr auto" }} onClick={() => jumpTo(e.ts)} title={t("Показать на графике ±5 минут")}>
+          <div key={e.id} className="ev ev-click" style={{ gridTemplateColumns: "150px 22px 1fr auto" }} onClick={() => jumpTo(e.ts)} title={t("Показать на графике ±5 минут")}>
             <span className="ts">{fmtDateTime(e.ts)}</span>
-            <span className="msg">{e.message}</span>
+            <EvIcon kind={e.kind} severity={e.severity} />
+            <span className="msg">{stripMark(e.message)}</span>
             <span className="tg">{t("на графике →")}</span>
           </div>
         ))}
@@ -467,8 +503,8 @@ function Kpi({ l, v, u, c }: { l: string; v: string; u?: string; c?: string }) {
 function Legend() {
   return (
     <span className="legend">
-      <span><i style={{ background: "#e9eef3" }} />{t("средняя")}</span>
-      <span><i style={{ background: "rgba(200,215,230,.35)", height: 8 }} />{t("мин–макс")}</span>
+      <span><i style={{ background: "var(--chart-line)" }} />{t("средняя")}</span>
+      <span><i style={{ background: "rgba(var(--fg-rgb),.3)", height: 8 }} />{t("мин–макс")}</span>
       <span><i style={{ background: "var(--down)" }} />{t("потери, %")}</span>
     </span>
   );

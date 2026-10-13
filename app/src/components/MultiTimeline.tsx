@@ -2,6 +2,7 @@ import { t } from "../i18n";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { TimelinePoint } from "../types";
 import { fmtDateTime, fmtMs, fmtPct } from "../format";
+import { cv, rgbaVar } from "../theme";
 
 export interface Series {
   id: string;
@@ -12,8 +13,6 @@ export interface Series {
 
 export type Metric = "avg" | "loss";
 
-/** Цвета линий: хорошо различимы на чёрном фоне. */
-export const SERIES_COLORS = ["#35e08a", "#5aa9ff", "#f2c14e", "#ff7ab6", "#b48cff", "#ff9147", "#4fd6d6", "#e8ecf1", "#9fd356", "#ff5f6d", "#c9a3a8", "#7aa2ff"];
 
 const PAD = { l: 48, r: 16, t: 10, b: 22 };
 
@@ -96,18 +95,18 @@ export function MultiTimeline({ series, from, to, metric, height = 280, onFocus 
     for (let i = 0; i <= 4; i++) {
       const v = (yMax / 4) * i;
       const y = Math.round(yOf(v)) + 0.5;
-      g.strokeStyle = "rgba(255,255,255,0.05)";
+      g.strokeStyle = rgbaVar("--fg-rgb", 0.06);
       g.beginPath(); g.moveTo(PAD.l, y); g.lineTo(PAD.l + plotW, y); g.stroke();
-      g.fillStyle = "#6c7682"; g.textAlign = "right";
+      g.fillStyle = cv("--chart-axis"); g.textAlign = "right";
       g.fillText(metric === "loss" ? `${Math.round(v)}%` : String(v < 10 ? +v.toFixed(1) : Math.round(v)), PAD.l - 6, y);
     }
     const { ticks, step } = timeTicks(from, to, plotW);
     g.textAlign = "center"; g.textBaseline = "top";
     for (const t of ticks) {
       const x = Math.round(xOf(t)) + 0.5;
-      g.strokeStyle = "rgba(255,255,255,0.04)";
+      g.strokeStyle = rgbaVar("--fg-rgb", 0.045);
       g.beginPath(); g.moveTo(x, PAD.t); g.lineTo(x, PAD.t + plotH); g.stroke();
-      g.fillStyle = "#6c7682";
+      g.fillStyle = cv("--chart-axis");
       g.fillText(tickLabel(t, step), x, PAD.t + plotH + 6);
     }
 
@@ -131,7 +130,7 @@ export function MultiTimeline({ series, from, to, metric, height = 280, onFocus 
       }
       g.stroke();
     }
-    g.strokeStyle = "#1b2128";
+    g.strokeStyle = cv("--chart-frame");
     g.strokeRect(PAD.l + 0.5, PAD.t + 0.5, plotW - 1, plotH - 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [series, from, to, width, height, yMax, metric]);
@@ -173,11 +172,11 @@ export function MultiTimeline({ series, from, to, metric, height = 280, onFocus 
     >
       <canvas ref={canvas} style={{ width, height, display: "block" }} />
       {drag && (
-        <div style={{ position: "absolute", top: PAD.t, height: plotH, left: Math.min(...drag), width: Math.abs(drag[1] - drag[0]), background: "rgba(53,224,138,0.14)", border: "1px dashed rgba(53,224,138,.6)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: PAD.t, height: plotH, left: Math.min(...drag), width: Math.abs(drag[1] - drag[0]), background: "rgba(var(--accent-rgb),0.14)", border: "1px dashed rgba(var(--accent-rgb),.6)", pointerEvents: "none" }} />
       )}
       {hover && hoverX != null && !drag && (
         <>
-          <div style={{ position: "absolute", top: PAD.t, height: plotH, left: hoverX, width: 1, background: "rgba(255,255,255,.35)", pointerEvents: "none" }} />
+          <div style={{ position: "absolute", top: PAD.t, height: plotH, left: hoverX, width: 1, background: "rgba(var(--fg-rgb),.35)", pointerEvents: "none" }} />
           <div className="chart-tip" style={{ top: 10, left: hoverX > width - 260 ? hoverX - 250 : hoverX + 12, minWidth: 220 }}>
             <div style={{ marginBottom: 4, color: "var(--text-2)" }}>{fmtDateTime(hover.ts)}</div>
             {hover.rows.map(({ s, p }) => (

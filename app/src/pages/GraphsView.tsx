@@ -118,15 +118,18 @@ export function GraphsView({ items, grouped, showGroups, onOpen, onContext }: Pr
           ))}
         </div>
         {zoom && (
-          <span className="pill" style={{ color: "var(--info)", borderColor: "rgba(90,169,255,.35)" }}>
+          <span className="pill" style={{ color: "var(--info)", borderColor: "rgba(var(--info-rgb),.35)" }}>
             Приближено: {fmtClock(zoom[0])} – {fmtClock(zoom[1])}
             <button className="btn ghost sm" style={{ height: 18, padding: "0 4px" }} onClick={() => { setZoom(null); setNow(Date.now()); }}>✕</button>
           </span>
         )}
-        <span style={{ flex: 1 }} />
-        <span className="c-muted" style={{ fontSize: 11.5 }}>
-          <i className="lg-line" />задержка <i className="lg-loss" />потери · выделите участок мышью — приблизить · двойной клик по графику — сброс
-        </span>
+      </div>
+      <div className="graphs-legend">
+        <span><i className="lg-line" />задержка</span>
+        <span><i className="lg-loss" />потери</span>
+        <span className="sep" />
+        <span>выделите участок мышью — приблизить</span>
+        <span>двойной клик по графику — сброс</span>
       </div>
       {showGroups
         ? grouped.map(([g, list]) => (

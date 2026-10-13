@@ -1,0 +1,171 @@
+/* Темы оформления. Цвета и формы приходят переменными из theme.ts;
+   здесь — общие правила, которые от переменных зависят, и то, чем темы
+   отличаются по форме: верхнее меню, кнопки-таблетки, стекло. */
+
+html, body { background: var(--page-bg); background-attachment: fixed; }
+body { font-family: var(--sans); }
+.app { background: transparent; }
+.topbar h1 { font-weight: var(--title-weight); }
+.card h3, .section-title, .tile .nm, .diag-title { font-weight: var(--title-weight); }
+table.grid th, .settings-tabs, .graphs-bar { background: var(--sticky-bg); }
+.kpi { background: var(--sticky-bg); }
+.save-bar { background: linear-gradient(transparent, var(--sticky-bg) 35%); }
+.badge.red { color: var(--on-solid); }
+
+/* Поверхности: в стеклянной теме — размытие того, что под ними. */
+.stat-card, .tile, .chart-card, .card, .g-row, .wb-cnt, .wb-card, .wb-grp, .diag, .pick-list,
+.sidebar, .tnav, .fm-panel, .fm-legend, .fm-stat, .chips {
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+}
+.modal, .ctx-menu, .toast, .fm-gear, .chart-tip, .fm-tip {
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  backdrop-filter: blur(18px) saturate(130%);
+}
+.modal, .modal-h, .modal-f { background: var(--overlay); }
+.fm-gear { background: var(--overlay); }
+
+/* Темы с собственными поверхностями: у карточек нет рамки, только фон */
+.stat-card, .tile, .chart-card, .card, .wb-cnt, .wb-card, .wb-grp, .g-row { border-color: var(--surface-border); background: var(--surface); }
+.stat-card:hover, .tile:hover, .g-row:hover { border-color: var(--line-2); }
+.tile.down { border-color: rgba(var(--down-rgb), .45); }
+.tile.bad { border-color: rgba(var(--bad-rgb), .35); }
+.tile.crit, .g-row.crit { border-color: rgba(var(--down-rgb), .4); }
+.stat-card.on { border-color: var(--accent-2); }
+
+/* ================================================================ Верхнее меню */
+.app.top { display: flex; flex-direction: column; height: 100%; }
+.app.top > .main { flex: 1; min-height: 0; }
+.app.top .topbar { border-bottom: 0; height: 58px; padding: 0 24px; }
+.app.top .content { padding-bottom: 8px; }
+.tnav { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; min-height: 64px; padding: 12px 22px; flex: none; position: relative; z-index: 5; }
+.app.top.mac .tnav { padding-left: 88px; }
+.tnav-brand { display: flex; align-items: center; gap: 10px; flex: none; cursor: default; }
+.tnav-brand b { font-size: 16px; letter-spacing: .2px; }
+/* Узкое окно: разделы и группы переносятся на следующую строку, ничего не уходит за край */
+.tnav-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 4px; min-width: 0; }
+.tnav-nav button {
+  display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border: 0; background: transparent;
+  color: var(--text-2); cursor: pointer; white-space: nowrap; border-radius: var(--r-ctl); font-size: 13.5px; position: relative;
+}
+.tnav-nav button:hover { color: var(--text); }
+.tnav-nav button.active { color: var(--nav-active-fg); background: var(--nav-active-bg); }
+.tnav-nav .badge { margin-left: 2px; }
+.tnav-fill { flex: 1; align-self: stretch; min-width: 12px; }
+.tnav-tools { display: flex; align-items: center; gap: 8px; flex: none; margin-left: auto; }
+.tnav-engine { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; margin-right: 4px; font-family: var(--mono); }
+.tnav-ico { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--line-2); background: var(--bg-1); color: var(--text-2); cursor: pointer; position: relative; }
+.tnav-ico:hover { color: var(--text); border-color: var(--line-3); }
+.tnav-ico.on { color: var(--nav-active-fg); background: var(--nav-active-bg); border-color: transparent; }
+.tnav-dot { position: absolute; top: 7px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--down); box-shadow: 0 0 0 2px var(--bg); }
+
+/* Группы полосой под заголовком */
+.grpbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 0 24px 10px; flex: none; }
+.grpbar button {
+  display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px; flex: none;
+  border-radius: var(--r-ctl); border: 1px solid var(--line-2); background: var(--surface); color: var(--text-2);
+  cursor: pointer; white-space: nowrap; font-size: 12.5px;
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+}
+.grpbar button:hover { color: var(--text); border-color: var(--line-3); }
+.grpbar button.active { color: var(--nav-active-fg); background: var(--nav-active-bg); border-color: transparent; }
+.grpbar button.active .badge { background: rgba(var(--fg-rgb), .14); color: inherit; }
+.grpbar button.drop-over { box-shadow: inset 0 0 0 1px var(--accent-2); background: var(--accent-soft); }
+.grpbar button.drop-before { box-shadow: inset 2px 0 0 var(--accent); }
+.grpbar button.drop-after { box-shadow: inset -2px 0 0 var(--accent); }
+.grpbar button.dragging { opacity: .45; }
+.grpbar button[draggable="true"] { cursor: grab; }
+.grpbar .grp-add { width: 30px; padding: 0; justify-content: center; border-style: dashed; }
+.app.kiosk .tnav, .app.kiosk .grpbar { display: none; }
+
+/* ================================================================ Выбор темы */
+.theme-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; margin-top: 6px; }
+.theme-card { display: flex; flex-direction: column; gap: 8px; text-align: left; padding: 10px; border-radius: var(--r-card); border: 1px solid var(--line-2); background: var(--bg-2); cursor: pointer; color: var(--text); }
+.theme-card:hover { border-color: var(--line-3); }
+.theme-card.on { border-color: var(--accent-2); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .18); }
+.theme-prev { height: 118px; border-radius: calc(var(--r-card) - 4px); overflow: hidden; border: 1px solid rgba(var(--fg-rgb), .08); }
+.theme-meta { display: flex; align-items: center; gap: 8px; }
+.theme-meta b { font-size: 13.5px; }
+.theme-on { font-size: 11px; color: var(--accent-2); border: 1px solid currentColor; border-radius: 99px; padding: 0 7px; }
+.theme-card small { color: var(--muted); font-size: 11.5px; line-height: 1.4; }
+
+/* ================================================================ Графит */
+[data-theme="graphite"] .tnav { min-height: 70px; }
+[data-theme="graphite"] .tnav-nav { gap: 6px; }
+[data-theme="graphite"] .tnav-nav button { height: 36px; padding: 0 14px; border: 1px solid var(--line-2); background: rgba(255, 255, 255, .04); border-radius: 10px; color: var(--text); font-weight: 500; }
+[data-theme="graphite"] .tnav-nav button:hover { background: rgba(255, 255, 255, .08); border-color: var(--line-3); }
+[data-theme="graphite"] .tnav-nav button.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 6px 20px rgba(255, 90, 79, .3); }
+[data-theme="graphite"] .tnav-nav button.active .badge { background: rgba(255, 255, 255, .2); color: #fff; }
+[data-theme="graphite"] .tnav-ico { border-radius: 10px; border-color: var(--line-2); background: rgba(255, 255, 255, .04); }
+[data-theme="graphite"] .tnav-ico.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+[data-theme="graphite"] .topbar h1 { font-size: 24px; letter-spacing: .2px; }
+[data-theme="graphite"] .grpbar button { border-color: var(--line-2); background: rgba(255, 255, 255, .04); border-radius: 10px; }
+[data-theme="graphite"] .grpbar button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+[data-theme="graphite"] .stat-card { padding: 14px 18px; border-radius: var(--r-card); }
+[data-theme="graphite"] .stat-card .v { font-size: 26px; font-weight: 700; }
+[data-theme="graphite"] .stat-card.on { border-color: transparent; box-shadow: inset 0 0 0 2px var(--accent); }
+[data-theme="graphite"] .tile { padding: 16px 18px; }
+[data-theme="graphite"] .tile .big { font-weight: 700; }
+[data-theme="graphite"] .btn { border-color: transparent; background: var(--bg-2); }
+[data-theme="graphite"] .btn:hover { background: var(--bg-3); }
+[data-theme="graphite"] .btn.ghost { background: transparent; }
+[data-theme="graphite"] .btn.primary { background: var(--accent); }
+[data-theme="graphite"] .input, [data-theme="graphite"] .select, [data-theme="graphite"] .textarea { background: var(--bg-2); border-color: transparent; }
+[data-theme="graphite"] .input:focus, [data-theme="graphite"] .select:focus { border-color: var(--accent); }
+[data-theme="graphite"] .settings-tabs button { border-color: transparent; background: var(--bg-1); }
+[data-theme="graphite"] .settings-tabs button.on { color: #fff; }
+[data-theme="graphite"] table.grid td, [data-theme="graphite"] table.grid th { border-bottom-color: var(--line); }
+[data-theme="graphite"] .table-wrap { margin: 4px 20px 20px; padding: 6px 14px 14px; background: var(--surface); border-radius: var(--r-card); }
+[data-theme="graphite"] .table-wrap table.grid th { background: var(--surface); }
+[data-theme="graphite"] .table-wrap table.grid tbody tr:hover td { background: var(--bg-2); }
+[data-theme="graphite"] .pill { border-color: transparent; }
+[data-theme="graphite"] .chips { background: var(--bg-1); border-color: transparent; border-radius: 999px; }
+[data-theme="graphite"] .chips button { border-radius: 999px; }
+[data-theme="graphite"] .chips button.on { background: var(--accent); color: #fff; box-shadow: none; }
+[data-theme="graphite"] .check input:checked + .sw { background: var(--accent); }
+[data-theme="graphite"] .wb-card, [data-theme="graphite"] .wb-cnt, [data-theme="graphite"] .wb-grp { border-color: transparent; }
+
+
+/* ================================================================ Стекло */
+[data-theme="glass"] .tnav { min-height: 70px; }
+[data-theme="glass"] .tnav-nav { gap: 6px; }
+[data-theme="glass"] .tnav-nav button { height: 36px; padding: 0 14px; border: 1px solid var(--line-2); background: rgba(255, 255, 255, .05); border-radius: 10px; color: var(--text); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+[data-theme="glass"] .tnav-nav button:hover { background: rgba(255, 255, 255, .1); }
+[data-theme="glass"] .tnav-nav button.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 6px 20px rgba(255, 122, 31, .35); }
+[data-theme="glass"] .tnav-ico { border-radius: 10px; background: rgba(255, 255, 255, .05); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+[data-theme="glass"] .tnav-ico.on { background: var(--accent); }
+[data-theme="glass"] .topbar h1 { font-size: 21px; font-weight: 500; }
+[data-theme="glass"] .grpbar button { background: rgba(255, 255, 255, .05); border-radius: 10px; }
+[data-theme="glass"] .grpbar button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+[data-theme="glass"] .stat-card, [data-theme="glass"] .tile, [data-theme="glass"] .chart-card, [data-theme="glass"] .card,
+[data-theme="glass"] .wb-cnt, [data-theme="glass"] .wb-card, [data-theme="glass"] .wb-grp, [data-theme="glass"] .g-row, [data-theme="glass"] .diag {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 10px 30px rgba(0, 0, 0, .18);
+}
+[data-theme="glass"] .stat-card { padding: 12px 16px; }
+[data-theme="glass"] .stat-card.on { border-color: var(--accent); }
+[data-theme="glass"] .table-wrap { margin: 4px 20px 20px; padding: 6px 14px 14px; background: var(--surface); border: 1px solid var(--surface-border); border-radius: var(--r-card); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); }
+[data-theme="glass"] .table-wrap table.grid th { background: transparent; }
+[data-theme="glass"] table.grid tbody tr:hover td { background: rgba(255, 255, 255, .05); }
+[data-theme="glass"] .btn { background: rgba(255, 255, 255, .06); border-color: var(--line-2); }
+[data-theme="glass"] .btn:hover { background: rgba(255, 255, 255, .11); }
+[data-theme="glass"] .btn.ghost { background: transparent; border-color: transparent; }
+[data-theme="glass"] .btn.primary { background: var(--accent); border-color: var(--accent); box-shadow: 0 6px 18px rgba(255, 122, 31, .3); }
+[data-theme="glass"] .input, [data-theme="glass"] .select, [data-theme="glass"] .textarea { background: rgba(0, 0, 0, .22); }
+[data-theme="glass"] .select option { background: #2a221d; }
+[data-theme="glass"] .settings-tabs { background: transparent; }
+[data-theme="glass"] .settings-tabs button { background: rgba(255, 255, 255, .05); }
+[data-theme="glass"] .settings-tabs button.on { color: #fff; }
+[data-theme="glass"] .chips { background: rgba(0, 0, 0, .2); }
+[data-theme="glass"] .chips button.on { background: var(--accent); color: #fff; box-shadow: none; }
+[data-theme="glass"] .check input:checked + .sw { background: var(--accent); }
+[data-theme="glass"] .graphs-bar, [data-theme="glass"] .kpi { -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+[data-theme="glass"] .kpis { background: transparent; border-bottom-color: var(--line); }
+[data-theme="glass"] .fm-canvas { background: rgba(0, 0, 0, .12); }
+[data-theme="glass"] .fm-panel { background: rgba(30, 24, 20, .55); }
+.app .grpbar button.grp-add { padding: 0; justify-content: center; }
+.app .btn.icon-btn { padding: 0; width: 30px; justify-content: center; }
+[data-theme="graphite"] .settings-tabs button.on, [data-theme="glass"] .settings-tabs button.on { background: var(--accent); border-color: var(--accent); }
+[data-theme="graphite"] .settings-tabs, [data-theme="glass"] .settings-tabs { background: transparent; }
+
+/* Логотип один на все темы: фирменный знак основной темы */
+.brand-logo { background: #0b0f12; border: 1px solid #27303a; border-radius: 8px; }

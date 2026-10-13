@@ -2,6 +2,11 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./styles.css";
+import "./themes.css";
+import { applySavedTheme } from "./theme";
+
+// Тема прошлого запуска — сразу, чтобы окно не мигало чужими цветами.
+applySavedTheme();
 
 // Отключаем системное контекстное меню WebView (кроме полей ввода).
 document.addEventListener("contextmenu", (e) => {

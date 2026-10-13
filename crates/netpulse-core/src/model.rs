@@ -265,6 +265,16 @@ pub struct AlertRules {
     /// Повторять уведомление о незакрытой проблеме каждые N минут (0 = не повторять).
     pub repeat_minutes: u32,
     pub notify_recovery: bool,
+    /// Сообщать во внешние каналы, только если проблема держится дольше N секунд.
+    /// Короткие обрывы остаются в журнале.
+    pub notify_delay_sec: u32,
+    /// Ночной режим: в эти часы — только критичное, остальное в утреннюю сводку.
+    pub quiet_enabled: bool,
+    pub quiet_from: u8,
+    pub quiet_to: u8,
+    /// Утренняя сводка в Телеграм.
+    pub digest_enabled: bool,
+    pub digest_hour: u8,
 }
 
 impl Default for AlertRules {
@@ -278,6 +288,12 @@ impl Default for AlertRules {
             cert_days: 14,
             repeat_minutes: 0,
             notify_recovery: true,
+            notify_delay_sec: 60,
+            quiet_enabled: false,
+            quiet_from: 23,
+            quiet_to: 8,
+            digest_enabled: false,
+            digest_hour: 9,
         }
     }
 }
@@ -288,6 +304,13 @@ pub struct TelegramChannel {
     pub enabled: bool,
     pub bot_token: String,
     pub chat_id: String,
+    /// Этот компьютер отвечает на кнопки и команды бота (включать на одной копии программы).
+    #[serde(default = "yes")]
+    pub interactive: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -438,6 +461,17 @@ pub struct Settings {
     pub auto_update: bool,
     /// Язык интерфейса: "ru" или "en".
     pub language: String,
+    /// Тема оформления: pulse, graphite, glass.
+    pub theme: String,
+    /// Кто дежурит за этим компьютером — подставляется в «взял в работу» и подпись заявки.
+    pub duty_name: String,
+    /// Контакт для обратной связи в заявке оператору (телефон, почта).
+    pub duty_contact: String,
+    /// Целевая доступность для отчётов, %.
+    pub sla_target: f32,
+    /// Контроль и отслеживание инцидентов: «взять в работу», заявки, тишина, напоминания,
+    /// кнопки и команды бота. Выключено — инциденты только группируют уведомления.
+    pub incident_control: bool,
     /// Шаблоны настроек целей.
     pub templates: Vec<TargetTemplate>,
 }
@@ -455,6 +489,11 @@ impl Default for Settings {
             launch_at_login: false,
             auto_update: true,
             language: "ru".into(),
+            theme: "pulse".into(),
+            duty_name: String::new(),
+            duty_contact: String::new(),
+            sla_target: 99.9,
+            incident_control: false,
             templates: default_templates(),
         }
     }
@@ -608,6 +647,9 @@ pub struct ConfigBundle {
     #[serde(default)]
     pub groups: Vec<String>,
     pub settings: Option<Settings>,
+    /// Справочник операторов (провайдеры, ЦОД, подрядчики).
+    #[serde(default)]
+    pub operators: Vec<Operator>,
 }
 
 /// Пара дублей: ping и трассировка до одного адреса.
@@ -668,4 +710,143 @@ pub struct HopSeries {
     pub addr: Option<String>,
     pub hostname: Option<String>,
     pub points: Vec<TimelinePoint>,
+}
+
+
+// ---------------------------------------------------------------- Инциденты
+
+/// Узел внутри инцидента: когда пропал и когда вернулся.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct IncidentTarget {
+    pub id: String,
+    pub name: String,
+    pub host: String,
+    pub since: i64,
+    pub until: Option<i64>,
+    /// Последнее, что о нём известно: «недоступен», «потери 15%»…
+    pub problem: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct IncidentLog {
+    pub ts: i64,
+    pub text: String,
+}
+
+/// Обращение к оператору по инциденту.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct IncidentTicket {
+    pub operator_id: String,
+    pub operator_name: String,
+    pub number: String,
+    pub by: String,
+    pub at: i64,
+}
+
+/// Инцидент: от первой проблемы до восстановления. Одно падение площадки — один инцидент.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Incident {
+    pub id: String,
+    pub opened: i64,
+    pub closed: Option<i64>,
+    /// critical | warning
+    pub severity: String,
+    /// down | degraded
+    pub kind: String,
+    pub group: String,
+    pub title: String,
+    pub cause: Option<String>,
+    pub targets: Vec<IncidentTarget>,
+    pub ack_by: Option<String>,
+    pub ack_at: Option<i64>,
+    pub muted_until: Option<i64>,
+    pub ticket: Option<IncidentTicket>,
+    pub log: Vec<IncidentLog>,
+    /// Когда ушло первое уведомление (None — ещё не сообщали).
+    pub notified_at: Option<i64>,
+    /// Уведомления не нужны: у всех узлов выключены уведомления.
+    pub silent: bool,
+    /// Сообщение в Телеграме, которое редактируется по ходу инцидента.
+    pub tg_message_id: Option<i64>,
+    pub reminded_at: Option<i64>,
+}
+
+// ---------------------------------------------------------------- Операторы
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Contact {
+    pub value: String,
+    /// «Техподдержка, круглосуточно», «Менеджер».
+    pub label: String,
+}
+
+/// Услуга оператора: то, что называют в заявке. Привязана к целям и группам.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct OperatorService {
+    pub id: String,
+    /// Номер услуги, канала, ID подключения.
+    pub number: String,
+    pub address: String,
+    pub ips: String,
+    pub speed: String,
+    pub note: String,
+    /// primary | backup
+    pub role: String,
+    pub targets: Vec<String>,
+    pub groups: Vec<String>,
+}
+
+/// Внешняя организация, от которой зависит работа узлов: провайдер, ЦОД, хостинг, подрядчик.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Operator {
+    pub id: String,
+    pub name: String,
+    /// provider | datacenter | hosting | cloud | contractor | other
+    pub kind: String,
+    pub phones: Vec<Contact>,
+    pub emails: Vec<Contact>,
+    pub portal: String,
+    pub telegram: String,
+    /// Кому писать, если первая линия не отвечает, и когда.
+    pub escalation: String,
+    pub contract: String,
+    pub account: String,
+    /// Время реакции по договору, минут (0 — не указано).
+    pub sla_react_min: u32,
+    /// Время восстановления по договору, часов (0 — не указано).
+    pub sla_fix_hours: f32,
+    /// Доступность по договору, % (0 — не указано).
+    pub sla_uptime: f32,
+    /// Домены и слова в именах хопов, по которым узнаём сеть оператора: «example.net, examplenet».
+    pub domains: String,
+    pub notes: String,
+    pub services: Vec<OperatorService>,
+}
+
+/// Оператор цели с услугой, через которую цель к нему относится.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TargetOperator {
+    pub operator: Operator,
+    pub service: Option<OperatorService>,
+    /// target | group | hint
+    pub via: String,
+}
+
+/// Простой цели по дням и часам — для дашборда отчётов.
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DowntimeProfile {
+    pub id: String,
+    /// (начало суток по местному времени, мс простоя)
+    pub days: Vec<(i64, i64)>,
+    /// Простой по часам суток, мс.
+    pub hours: Vec<i64>,
 }

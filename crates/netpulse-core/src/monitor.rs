@@ -16,6 +16,10 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
 
+#[path = "monitor_inc.rs"]
+mod inc_ext;
+pub use inc_ext::{IncidentNotice, TicketDraft};
+
 /// Как часто уточнять маршрут для карты у целей без трассировки.
 const MAP_ROUTE_EVERY_MS: i64 = 20 * 60_000;
 /// Сколько таких трассировок за один проход фоновой задачи (по 3 одновременно).
@@ -100,6 +104,17 @@ pub struct EngineInfo {
     pub db_warning: Option<String>,
 }
 
+/// Подсеть, которую можно просканировать.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubnetHint {
+    pub subnet: String,
+    /// Сколько целей мониторинга в ней.
+    pub targets: usize,
+    /// Своя подсеть этого компьютера.
+    pub local: bool,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryStats {
@@ -122,6 +137,8 @@ pub struct Monitor {
     order: RwLock<Vec<String>>,
     runners: RwLock<HashMap<String, Arc<Runner>>>,
     alerts_tx: broadcast::Sender<Alert>,
+    /// Уведомления по инцидентам: открыт, восстановлен, напоминание.
+    inc_tx: broadcast::Sender<IncidentNotice>,
     dns: Mutex<HashMap<IpAddr, Option<String>>>,
     dns_pending: Mutex<HashSet<IpAddr>>,
     data_dir: String,
@@ -129,6 +146,16 @@ pub struct Monitor {
     write_buf: Mutex<Vec<(String, Sample)>>,
     /// Сообщение о восстановлении после повреждённой базы — показываем в интерфейсе.
     db_warning: RwLock<Option<String>>,
+    /// Сканирование сети по кнопке: ход и флаг остановки.
+    scan_progress: Arc<Mutex<crate::scan::ScanProgress>>,
+    scan_cancel: Arc<std::sync::atomic::AtomicBool>,
+    /// Открытые инциденты (и закрытые, по которым ещё не ушло итоговое уведомление).
+    incidents: Mutex<Vec<Incident>>,
+    /// Инциденты, у которых изменилось что-то видимое — обновить сообщение.
+    inc_dirty: Mutex<HashSet<String>>,
+    /// Справочник операторов.
+    operators: RwLock<Vec<Operator>>,
+    started_at: i64,
 }
 
 impl Monitor {
@@ -163,6 +190,7 @@ impl Monitor {
             }
         };
         let (alerts_tx, _) = broadcast::channel(256);
+        let (inc_tx, _) = broadcast::channel(64);
         let rt = tokio::runtime::Handle::try_current()
             .map_err(|_| anyhow!("Monitor::start нужно вызывать внутри tokio runtime"))?;
         let m = Arc::new(Self {
@@ -175,12 +203,21 @@ impl Monitor {
             order: RwLock::new(Vec::new()),
             runners: RwLock::new(HashMap::new()),
             alerts_tx,
+            inc_tx,
             dns: Mutex::new(HashMap::new()),
             write_buf: Mutex::new(Vec::new()),
             db_warning: RwLock::new(None),
+            scan_progress: Arc::new(Mutex::new(crate::scan::ScanProgress::default())),
+            scan_cancel: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             dns_pending: Mutex::new(HashSet::new()),
             data_dir,
+            incidents: Mutex::new(Vec::new()),
+            inc_dirty: Mutex::new(HashSet::new()),
+            operators: RwLock::new(Vec::new()),
+            started_at: now_ms(),
         });
+        m.load_operators();
+        m.load_open_incidents();
         let now = now_ms();
         for mut t in targets {
             let norm = t.thresholds.normalized_for(t.kind);
@@ -230,6 +267,17 @@ impl Monitor {
                 m.flush_samples().await;
             }
         });
+        // Инциденты: уведомления, обновления сообщений, напоминания, утренняя сводка.
+        let weak_i = Arc::downgrade(&m);
+        rt.spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                let Some(m) = weak_i.upgrade() else { return };
+                m.incident_tick().await;
+            }
+        });
+        // Бот: кнопки и команды из чата.
+        rt.spawn(m.clone().bot_loop());
         let weak = Arc::downgrade(&m);
         rt.spawn(async move {
             tokio::time::sleep(Duration::from_secs(30)).await;
@@ -283,6 +331,11 @@ impl Monitor {
 
     pub fn subscribe(&self) -> broadcast::Receiver<Alert> {
         self.alerts_tx.subscribe()
+    }
+
+    /// Уведомления по инцидентам — для системных уведомлений и интерфейса.
+    pub fn subscribe_incidents(&self) -> broadcast::Receiver<IncidentNotice> {
+        self.inc_tx.subscribe()
     }
 
     // ------------------------------------------------------------ targets
@@ -554,6 +607,7 @@ impl Monitor {
                 }
             }
         }
+        self.incident_drop_target(id, "цель удалена");
         if let Some(r) = self.runners.write().remove(id) {
             if let Some(h) = r.task.lock().take() {
                 h.abort();
@@ -567,6 +621,9 @@ impl Monitor {
         let r = self.runners.read().get(id).cloned().ok_or_else(|| anyhow!("цель не найдена"))?;
         let mut t = r.target.read().clone();
         t.enabled = enabled;
+        if !enabled {
+            self.incident_drop_target(id, "проверка поставлена на паузу");
+        }
         self.upsert_target(t).map(|_| ())
     }
 
@@ -1097,6 +1154,133 @@ impl Monitor {
         Topology { local_ip: local_ip().map(|a| a.to_string()), routes, hops, pending }
     }
 
+    // ---------------------------------------------------------------- сканирование сети
+
+    /// Подсети для поиска устройств: своя (отмечена) и подсети частных адресов целей.
+    pub fn scan_subnets(&self) -> Vec<SubnetHint> {
+        let local = local_ip().and_then(crate::scan::net24);
+        let mut cnt: HashMap<String, usize> = HashMap::new();
+        for r in self.runners.read().values() {
+            let t = r.target.read();
+            if !t.enabled {
+                continue;
+            }
+            let st = r.state.lock();
+            if let Some(ip) = Self::target_ip(&t, &st).filter(|a| is_local_addr(a)) {
+                if let Some(n) = crate::scan::net24(ip) {
+                    *cnt.entry(n).or_default() += 1;
+                }
+            }
+        }
+        let mut out: Vec<SubnetHint> = cnt
+            .into_iter()
+            .map(|(subnet, targets)| SubnetHint { local: Some(&subnet) == local.as_ref(), subnet, targets })
+            .collect();
+        if let Some(l) = &local {
+            if !out.iter().any(|h| &h.subnet == l) {
+                out.push(SubnetHint { subnet: l.clone(), targets: 0, local: true });
+            }
+        }
+        out.sort_by(|a, b| b.local.cmp(&a.local).then(b.targets.cmp(&a.targets)).then(a.subnet.cmp(&b.subnet)));
+        out
+    }
+
+    pub fn scan_progress(&self) -> crate::scan::ScanProgress {
+        self.scan_progress.lock().clone()
+    }
+
+    pub fn scan_stop(&self) {
+        self.scan_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Запускает сканирование: трассировка всех включённых целей и поиск устройств в подсетях.
+    pub fn scan_start(self: &Arc<Self>, subnets: Vec<String>) -> Result<()> {
+        let Some(pinger) = self.pinger.clone() else {
+            return Err(anyhow!("ICMP недоступен: {}", self.pinger_error.clone().unwrap_or_default()));
+        };
+        for s in &subnets {
+            crate::scan::subnet_hosts(s).map_err(|e| anyhow!(e))?;
+        }
+        {
+            let mut p = self.scan_progress.lock();
+            if p.running {
+                return Err(anyhow!("сканирование уже идёт"));
+            }
+            *p = crate::scan::ScanProgress { running: true, phase: "Подготовка".into(), started: now_ms(), ..Default::default() };
+        }
+        self.scan_cancel.store(false, std::sync::atomic::Ordering::Relaxed);
+        let targets: Vec<(String, IpAddr)> = self
+            .order
+            .read()
+            .iter()
+            .filter_map(|id| {
+                let r = self.runners.read().get(id).cloned()?;
+                let t = r.target.read();
+                if !t.enabled {
+                    return None;
+                }
+                let st = r.state.lock();
+                Some((t.id.clone(), Self::target_ip(&t, &st)?))
+            })
+            .collect();
+        let previous: HashMap<String, i64> = self
+            .scan_last()
+            .ok()
+            .flatten()
+            .and_then(|j| serde_json::from_str::<crate::scan::ScanResult>(&j).ok())
+            .map(|r| r.devices.into_iter().map(|d| (d.mac.unwrap_or(d.ip), d.first_seen)).collect())
+            .unwrap_or_default();
+        let job = crate::scan::ScanJob { targets, subnets, local_ip: local_ip(), previous };
+        let m = self.clone();
+        self.rt.spawn(async move {
+            let res = crate::scan::run(pinger, job, m.scan_progress.clone(), m.scan_cancel.clone()).await;
+            let mut p = m.scan_progress.lock();
+            p.running = false;
+            p.finished = now_ms();
+            match res {
+                Ok(r) => match m.save_scan(&r) {
+                    Ok(()) => {
+                        p.phase = "Готово".into();
+                        p.scan_id = Some(r.id.clone());
+                    }
+                    Err(e) => p.error = Some(format!("не удалось сохранить снимок: {e}")),
+                },
+                Err(e) => p.error = Some(e),
+            }
+        });
+        Ok(())
+    }
+
+    const SCANS_KEEP: usize = 10;
+
+    fn save_scan(&self, r: &crate::scan::ScanResult) -> Result<()> {
+        self.storage.set_kv(&format!("scan:{}", r.id), &serde_json::to_string(r)?)?;
+        let mut list = self.scan_list()?;
+        list.insert(0, crate::scan::ScanInfo { id: r.id.clone(), started: r.started, finished: r.finished, traces: r.traces.len(), devices: r.devices.len() });
+        for old in list.iter().skip(Self::SCANS_KEEP) {
+            self.storage.delete_kv(&format!("scan:{}", old.id))?;
+        }
+        list.truncate(Self::SCANS_KEEP);
+        self.storage.set_kv("scan_index", &serde_json::to_string(&list)?)?;
+        Ok(())
+    }
+
+    pub fn scan_list(&self) -> Result<Vec<crate::scan::ScanInfo>> {
+        Ok(self.storage.get_kv("scan_index")?.and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default())
+    }
+
+    /// Снимок как JSON (его формат знает интерфейс).
+    pub fn scan_get(&self, id: &str) -> Result<Option<String>> {
+        self.storage.get_kv(&format!("scan:{id}"))
+    }
+
+    pub fn scan_last(&self) -> Result<Option<String>> {
+        match self.scan_list()?.first() {
+            Some(i) => self.scan_get(&i.id),
+            None => Ok(None),
+        }
+    }
+
     /// Раскладка карты сети (позиции, типы, иконки, подписи) — хранится как есть, её формат знает интерфейс.
     pub fn map_layout(&self) -> Result<Option<String>> {
         self.storage.get_kv("map_layout")
@@ -1186,6 +1370,7 @@ impl Monitor {
                 }
             }
         }
+        self.feed_incident(&a);
         let ev = EventRecord {
             id: 0,
             ts: now_ms(),
@@ -1196,7 +1381,10 @@ impl Monitor {
             message: a.message.clone(),
         };
         let _ = self.storage.insert_event(&ev);
-        if a.notify {
+        // Проблемы и восстановления уходят в каналы через инциденты (одно сообщение на случай).
+        // Сюда — только разовые события: смена маршрута, сертификат и т. п.
+        let via_incident = PROBLEM.contains(&a.kind.as_str()) || RECOVERY.contains(&a.kind.as_str());
+        if a.notify && !via_incident {
             let ch = self.settings.read().channels.clone();
             let msg = a.message.clone();
             let storage = self.storage.clone();
@@ -1779,6 +1967,7 @@ impl Monitor {
             targets: self.list_targets(),
             groups: self.groups(),
             settings: include_settings.then_some(settings),
+            operators: self.operators(),
         }
     }
 
@@ -1793,6 +1982,9 @@ impl Monitor {
                 s.channels.email.password = cur.channels.email.password;
             }
             self.save_settings(s)?;
+        }
+        if !bundle.operators.is_empty() {
+            self.import_operators(bundle.operators.clone())?;
         }
         if replace {
             for t in self.list_targets() {
