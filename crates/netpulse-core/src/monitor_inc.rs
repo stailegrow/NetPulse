@@ -502,7 +502,7 @@ impl Monitor {
         if !(tgc.enabled && !tgc.bot_token.is_empty() && !tgc.chat_id.is_empty()) {
             return Ok("Уведомление на компьютере показано. Телеграм не настроен — включите его и укажите токен и чат.".into());
         }
-        let control = s.incident_control;
+        let control = s.control_on();
         let mut html = tg::incident_html(&i, &ops, now, control);
         html.push_str("\n\n<i>Это пример, а не авария. Так будет выглядеть сообщение: оно обновляется на месте — кто взял, заявка, восстановление.</i>");
         tg::send(&tgc.bot_token, &tgc.chat_id, &html, if control { tg::keyboard(&i, now) } else { None }, None).await?;
@@ -518,7 +518,7 @@ impl Monitor {
         let now = now_ms();
         let settings = self.settings();
         let rules = settings.alert_rules.clone();
-        let control = settings.incident_control;
+        let control = settings.control_on();
 
         // После перезапуска сверяем оставшиеся открытыми инциденты с тем, что видно сейчас.
         if now - self.started_at > RECONCILE_AFTER_MS {
@@ -704,7 +704,7 @@ impl Monitor {
         let started = self.started_at / 1000 - 60;
         loop {
             let tgc = self.settings.read().channels.telegram.clone();
-            let control = self.settings.read().incident_control;
+            let control = self.settings.read().control_on();
             if !(control && tgc.enabled && tgc.interactive && !tgc.bot_token.is_empty() && !tgc.chat_id.is_empty()) {
                 tokio::time::sleep(Duration::from_secs(10)).await;
                 continue;

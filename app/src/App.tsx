@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { plural } from "./format";
 import { setLang, t } from "./i18n";
 import { api, isMac, isTauri } from "./api";
-import type { EngineInfo, FeedItem, IncidentNotice, Target, TargetSummary, TargetTemplate, UpdateInfo } from "./types";
+import type { EngineInfo, FeedItem, LicenseStatus, IncidentNotice, Target, TargetSummary, TargetTemplate, UpdateInfo } from "./types";
 import { DEFAULT_GROUP, INCIDENT_KINDS } from "./types";
 import { IncidentControl } from "./control";
 import { IncidentToasts, NoticeBell, loadFeed, saveFeed, type IncToast } from "./components/Notices";
@@ -19,12 +19,13 @@ import type { BulkPatch } from "./components/Templates";
 import { Compare } from "./pages/Compare";
 import { TargetModal } from "./components/TargetModal";
 import { Dot, Icon, Logo, stripMark } from "./components/ui";
+import { ProGate, type ProFeature } from "./components/License";
 import { beep } from "./sound";
 import { applyTheme, currentTheme, type ThemeDef } from "./theme";
 import { ask, askGroupDelete, askText, ConfirmHost, ContextMenu, GroupDeleteHost, PromptHost } from "./components/Dialogs";
 import type { MenuItem } from "./components/Dialogs";
 
-type Page = { name: "dashboard" } | { name: "target"; id: string; at?: number } | { name: "events"; tab?: { tab: "open" | "history" | "journal" } } | { name: "operators"; target?: string } | { name: "settings" } | { name: "reports" } | { name: "compare" } | { name: "wallboard" } | { name: "map" };
+type Page = { name: "dashboard" } | { name: "target"; id: string; at?: number } | { name: "events"; tab?: { tab: "open" | "history" | "journal" } } | { name: "operators"; target?: string } | { name: "settings"; tab?: "license" } | { name: "reports" } | { name: "compare" } | { name: "wallboard" } | { name: "map" };
 interface Toast { id: number; msg: string; kind: string }
 
 export default function App() {
@@ -35,7 +36,11 @@ export default function App() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [info, setInfo] = useState<EngineInfo | null>(null);
   const [unread, setUnread] = useState(0);
-  const [control, setControl] = useState(false);
+  const [controlSet, setControl] = useState(false);
+  const [lic, setLic] = useState<LicenseStatus | null>(null);
+  // Пока статус не пришёл — ничего не запираем, чтобы не мигало.
+  const pro = lic?.licensed ?? true;
+  const control = controlSet && pro;
   const [feed, setFeed] = useState<FeedItem[]>(() => loadFeed());
   const [incToasts, setIncToasts] = useState<IncToast[]>([]);
   const pushFeed = useCallback((f: FeedItem) => setFeed((cur) => { const n = [f, ...cur].slice(0, 60); saveFeed(n); return n; }), []);
@@ -105,6 +110,17 @@ export default function App() {
     () => Promise.all([api.summaries(), api.listGroups()]).then(([s, g]) => { setItems(s); setGroupNames(g); }).catch(() => {}),
     [],
   );
+  useEffect(() => { api.licenseStatus().then(setLic).catch(() => {}); }, [items.length]);
+  const openLicense = () => setPage({ name: "settings", tab: "license" });
+  // Новая цель: в бесплатной версии — не больше лимита.
+  const addTarget = async () => {
+    if (lic && !lic.licensed && items.length >= lic.targetLimit) {
+      if (await ask({ title: t("Бесплатная версия — до") + ` ${lic.targetLimit} ` + t("узлов"), message: t("Чтобы следить за большим числом узлов, введите ключ полной версии."), confirm: t("Ввести ключ") })) openLicense();
+      return;
+    }
+    setModal(null);
+  };
+  const gate = (f: ProFeature) => <ProGate feature={f} lic={lic} onLicense={setLic} toast={toast} />;
 
   // Язык интерфейса берём из настроек: перерисовка идёт через состояние lang.
   const [lang, setLangState] = useState<string>("ru");
@@ -170,13 +186,13 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key.toLowerCase() === "n") { e.preventDefault(); setModal(null); }
+      if (mod && e.key.toLowerCase() === "n") { e.preventDefault(); void addTarget(); }
       if (mod && e.key === ",") { e.preventDefault(); setPage({ name: "settings" }); }
       if (e.key === "Escape" && page.name === "target" && modal === undefined) setPage({ name: "dashboard" });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [page, modal]);
+  }, [page, modal, lic, items.length]);
 
   // Группы в порядке пользователя, включая пустые. «Общее» — буфер для целей без группы:
   // в боковой панели показывается, только когда в ней есть цели.
@@ -307,7 +323,7 @@ export default function App() {
       y: e.clientY,
       items: [
         { label: "Открыть", onClick: () => { setGroup(g); setPage({ name: "dashboard" }); } },
-        { label: t("Добавить цель в группу…"), onClick: () => { setGroup(g); setModal(null); } },
+        { label: t("Добавить цель в группу…"), onClick: () => { setGroup(g); void addTarget(); } },
         { label: "Переименовать…", disabled: isDefault, hint: isDefault ? "по умолчанию" : undefined, onClick: () => renameGroup(g) },
         { label: "Приостановить все цели", disabled: !count, onClick: () => Promise.all(members.filter((i) => i.enabled).map((i) => api.setEnabled(i.id, false))).then(refresh) },
         { label: "Запустить все цели", disabled: !count, onClick: () => Promise.all(members.filter((i) => !i.enabled).map((i) => api.setEnabled(i.id, true))).then(refresh) },
@@ -358,8 +374,6 @@ export default function App() {
     { label: "", separator: true },
     { label: "Удалить…", danger: true, onClick: () => removeTarget(s) },
   ];
-  const title =
-    page.name === "dashboard" ? (group ?? t("Все цели")) : page.name === "events" ? t("Инциденты") : page.name === "operators" ? t("Операторы") : page.name === "settings" ? t("Настройки") : page.name === "reports" ? t("Отчёт SLA") : page.name === "wallboard" ? t("Дашборд") : page.name === "map" ? t("Карта сети") : page.name === "compare" ? t("Сравнение") : "";
 
   // Кнопка группы: в боковой панели — список, в верхнем меню — полоса (порядок меняется перетаскиванием).
   const groupBtn = (g: string, list: TargetSummary[], horizontal: boolean) => {
@@ -414,28 +428,29 @@ export default function App() {
   const visibleGroups = groups.filter(([g, list]) => g !== DEFAULT_GROUP || list.length > 0);
 
   // Разделы программы — одни и те же в боковой панели и в верхнем меню.
+  const lock = pro ? null : <span className="nav-lock" title={t("В полной версии")}><Icon name="lock" size={11} /></span>;
   const navButtons = (topNav: boolean) => (
     <>
           <button title="Все цели" className={page.name === "dashboard" && !group ? "active" : ""} onClick={() => { setGroup(null); setPage({ name: "dashboard" }); }}>
             {!topNav && <Icon name="grid" />} {t("Все цели")} <span className="badge">{items.length}</span>
           </button>
           <button title="Дашборд" className={page.name === "wallboard" ? "active" : ""} onClick={() => setPage({ name: "wallboard" })}>
-            {!topNav && <Icon name="tiles" />} {t("Дашборд")}
+            {!topNav && <Icon name="tiles" />} {t("Дашборд")}{lock}
           </button>
           <button title="Инциденты" className={page.name === "events" ? "active" : ""} onClick={() => { setUnread(0); setPage({ name: "events" }); }}>
-            {!topNav && <Icon name="bell" />} {t("Инциденты")} {control && openInc > 0 ? <span className="badge red">{openInc}</span> : unread > 0 && <span className="badge">{unread}</span>}
+            {!topNav && <Icon name="bell" />} {t("Инциденты")}{lock} {control && openInc > 0 ? <span className="badge red">{openInc}</span> : unread > 0 && <span className="badge">{unread}</span>}
           </button>
           <button title="Сравнение" className={page.name === "compare" ? "active" : ""} onClick={() => setPage({ name: "compare" })}>
             {!topNav && <Icon name="chart" />} {t("Сравнение")}
           </button>
           <button title="Карта сети" className={page.name === "map" ? "active" : ""} onClick={() => setPage({ name: "map" })}>
-            {!topNav && <Icon name="map" />} {t("Карта сети")}
+            {!topNav && <Icon name="map" />} {t("Карта сети")} <span className="beta">beta</span>{lock}
           </button>
           <button title="Отчёты" className={page.name === "reports" ? "active" : ""} onClick={() => setPage({ name: "reports" })}>
-            {!topNav && <Icon name="report" />} {t("Отчёты")}
+            {!topNav && <Icon name="report" />} {t("Отчёты")}{lock}
           </button>
           <button title="Операторы" className={page.name === "operators" ? "active" : ""} onClick={() => setPage({ name: "operators" })}>
-            {!topNav && <Icon name="phone" />} {t("Операторы")}
+            {!topNav && <Icon name="phone" />} {t("Операторы")}{lock}
           </button>
           {!topNav && (
             <button title="Настройки" className={page.name === "settings" ? "active" : ""} onClick={() => setPage({ name: "settings" })}>
@@ -514,15 +529,6 @@ export default function App() {
       </aside>}
 
       <main className="main">
-        {page.name !== "target" && (
-          <div className="topbar" data-tauri-drag-region>
-            <h1>{title}</h1>
-            <div className="spacer" data-tauri-drag-region />
-            {page.name === "dashboard" && (
-              <button className="btn primary" onClick={() => setModal(null)} title="⌘N / Ctrl+N"><Icon name="plus" size={14} /> {t("Добавить цель")}</button>
-            )}
-          </div>
-        )}
         {top && page.name === "dashboard" && (
           <div className="grpbar">
             <button className={!group ? "active" : ""} onClick={() => setGroup(null)}>{t("Все")}<span className="badge">{items.length}</span></button>
@@ -530,7 +536,7 @@ export default function App() {
             <button className="grp-add" title={t("Новая группа")} onClick={addGroup}><Icon name="plus" size={13} /></button>
           </div>
         )}
-        {page.name === "target" && !top && <div data-tauri-drag-region style={{ height: isTauri && isMac ? 14 : 0, flex: "none" }} />}
+        {!top && <div data-tauri-drag-region style={{ height: isTauri && isMac ? 14 : 0, flex: "none" }} />}
         {update && (
           <div className="update-banner">
             <span>Доступна новая версия NetPulse <b className="c-ok">{update.version}</b> <span className="c-muted">(у вас {update.current})</span></span>
@@ -551,7 +557,7 @@ export default function App() {
         )}
         <div className="content" key={theme.id}>
           {page.name === "dashboard" && (
-            <Dashboard items={items} group={group} onOpen={open} onAdd={() => setModal(null)} onToggle={(s) => api.setEnabled(s.id, !s.enabled).then(refresh)} onContext={onContext} groupOrder={groups.map(([g]) => g)} selected={selected} onSelect={onSelect} onBulk={openBulk} />
+            <Dashboard items={items} group={group} onOpen={open} onAdd={() => void addTarget()} onToggle={(s) => api.setEnabled(s.id, !s.enabled).then(refresh)} onContext={onContext} groupOrder={groups.map(([g]) => g)} selected={selected} onSelect={onSelect} onBulk={openBulk} />
           )}
           {page.name === "target" && (
             <TargetDetail
@@ -567,13 +573,18 @@ export default function App() {
               onOperators={(tid) => setPage({ name: "operators", target: tid })}
             />
           )}
-          {page.name === "events" && <Incidents tabReq={page.tab} items={items} onOpen={open} refreshKey={refreshKey} toast={toast} onOperators={(tid) => setPage({ name: "operators", target: tid })} />}
-          {page.name === "operators" && <Operators items={items} groups={groupNames} toast={toast} onOpen={open} focusTarget={page.target ?? null} onFocusDone={() => setPage({ name: "operators" })} />}
-          {page.name === "reports" && <Reports onOpen={open} toast={toast} />}
-          {page.name === "wallboard" && <Wallboard items={items} onOpen={(id) => { if (kiosk) { setKiosk(false); api.setFullscreen(false).catch(() => {}); } open(id); }} onExit={() => setPage({ name: "dashboard" })} kiosk={kiosk} onKiosk={(v) => { setKiosk(v); if (!v) api.setFullscreen(false).catch(() => {}); }} />}
-          {page.name === "map" && <NetworkMap items={items} groups={groupNames} onOpen={open} toast={toast} />}
+          {page.name === "events" && !pro && gate("events")}
+          {page.name === "events" && pro && <Incidents tabReq={page.tab} items={items} onOpen={open} refreshKey={refreshKey} toast={toast} onOperators={(tid) => setPage({ name: "operators", target: tid })} />}
+          {page.name === "operators" && !pro && gate("operators")}
+          {page.name === "operators" && pro && <Operators items={items} groups={groupNames} toast={toast} onOpen={open} focusTarget={page.target ?? null} onFocusDone={() => setPage({ name: "operators" })} />}
+          {page.name === "reports" && !pro && gate("reports")}
+          {page.name === "reports" && pro && <Reports onOpen={open} toast={toast} />}
+          {page.name === "wallboard" && !pro && gate("wallboard")}
+          {page.name === "wallboard" && pro && <Wallboard items={items} onOpen={(id) => { if (kiosk) { setKiosk(false); api.setFullscreen(false).catch(() => {}); } open(id); }} onExit={() => setPage({ name: "dashboard" })} kiosk={kiosk} onKiosk={(v) => { setKiosk(v); if (!v) api.setFullscreen(false).catch(() => {}); }} />}
+          {page.name === "map" && !pro && gate("map")}
+          {page.name === "map" && pro && <NetworkMap items={items} groups={groupNames} onOpen={open} toast={toast} />}
           {page.name === "compare" && <Compare items={items} onOpen={open} />}
-          {page.name === "settings" && <SettingsPage toast={toast} onImported={() => setRefreshKey((k) => k + 1)} theme={theme.id} onTheme={changeTheme} />}
+          {page.name === "settings" && <SettingsPage tabReq={page.tab} lic={lic} onLicense={setLic} toast={toast} onImported={() => setRefreshKey((k) => k + 1)} theme={theme.id} onTheme={changeTheme} />}
         </div>
       </main>
 

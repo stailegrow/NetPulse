@@ -4,10 +4,10 @@ import type { ReactNode } from "react";
 import type { Health, Thresholds } from "../types";
 import { HEALTH_LABEL, VOIP_THRESHOLDS } from "../types";
 
-export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label?: ReactNode }) {
+export function Toggle({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label?: ReactNode; disabled?: boolean }) {
   return (
-    <label className="check">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+    <label className="check" style={disabled ? { opacity: 0.5, cursor: "default" } : undefined}>
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       <span className="sw" />
       {label && <span>{label}</span>}
     </label>

@@ -155,6 +155,7 @@ export function Dashboard({ items, group, onOpen, onAdd, onToggle, onContext, gr
             <button className={view === "tiles" ? "on" : ""} onClick={() => setViewPersist("tiles")} title={t("Плитки")}><Icon name="tiles" size={13} /></button>
             <button className={view === "graphs" ? "on" : ""} onClick={() => setViewPersist("graphs")} title={t("Графики всех целей")}><Icon name="chart" size={13} /></button>
           </div>
+          <button className="btn primary" onClick={onAdd} title="⌘N / Ctrl+N"><Icon name="plus" size={14} /> {t("Добавить цель")}</button>
         </div>
       </div>
 

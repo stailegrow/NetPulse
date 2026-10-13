@@ -275,7 +275,26 @@ async fn clear_events(m: State<'_, Arc<Monitor>>) -> R<()> {
 
 #[tauri::command]
 fn get_settings(m: Mon) -> Settings {
-    m.settings()
+    let mut s = m.settings();
+    s.license_key.clear();
+    s
+}
+
+#[tauri::command]
+fn license_status(m: Mon) -> netpulse_core::monitor::LicenseStatus {
+    m.license_status()
+}
+
+#[tauri::command]
+fn activate_license(m: Mon, key: String) -> R<netpulse_core::monitor::LicenseStatus> {
+    m.activate_license(&key).map_err(e)?;
+    Ok(m.license_status())
+}
+
+#[tauri::command]
+fn deactivate_license(m: Mon) -> R<netpulse_core::monitor::LicenseStatus> {
+    m.deactivate_license().map_err(e)?;
+    Ok(m.license_status())
 }
 
 #[tauri::command]
@@ -598,6 +617,13 @@ fn spawn_tray_updater(app: AppHandle, m: Arc<Monitor>) {
     });
 }
 
+/// Главное окно видно и в фокусе: пользователь смотрит на программу.
+fn window_active(app: &AppHandle) -> bool {
+    app.get_webview_window("main")
+        .map(|w| w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false) && w.is_focused().unwrap_or(false))
+        .unwrap_or(false)
+}
+
 fn spawn_alert_listener(app: AppHandle, m: Arc<Monitor>) {
     // Разовые события (смена маршрута, сертификат…): уведомление на каждое.
     // Недоступность, потери и восстановления приходят ниже — одним уведомлением на инцидент.
@@ -609,7 +635,8 @@ fn spawn_alert_listener(app: AppHandle, m: Arc<Monitor>) {
                 Ok(alert) => {
                     let ch = m1.settings().channels;
                     let own = !netpulse_core::incidents::handled_by_incidents(&alert.kind);
-                    if own && alert.notify && ch.system {
+                    // Окно на экране и в фокусе — хватает карточки внутри программы, без второго системного уведомления.
+                    if own && alert.notify && ch.system && !window_active(&app1) {
                         let _ = app1.notification().builder().title("NetPulse").body(&alert.message).show();
                     }
                     let _ = app1.emit("alert", serde_json::json!({ "alert": alert, "sound": own && ch.sound && alert.notify, "viaIncident": !own }));
@@ -625,7 +652,7 @@ fn spawn_alert_listener(app: AppHandle, m: Arc<Monitor>) {
             match rx.recv().await {
                 Ok(n) => {
                     let ch = m.settings().channels;
-                    if ch.system {
+                    if ch.system && !window_active(&app) {
                         let _ = app.notification().builder().title(&n.title).body(&n.body).show();
                     }
                     let sound = ch.sound && n.event != "close";
@@ -751,6 +778,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             engine_info,
+            license_status,
+            activate_license,
+            deactivate_license,
             list_targets,
             save_target,
             save_targets,

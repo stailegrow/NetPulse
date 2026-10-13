@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, isTauri } from "../api";
-import type { DuplicatePair, EngineInfo, Settings, Target, TargetTemplate, UpdateInfo } from "../types";
+import type { DuplicatePair, EngineInfo, LicenseStatus, Settings, Target, TargetTemplate, UpdateInfo } from "../types";
 import { defaultTemplates } from "../types";
 import { TemplateEditor, templateSummary } from "../components/Templates";
 import { DEFAULT_THRESHOLDS } from "../types";
@@ -8,10 +8,11 @@ import { fmtInterval, plural } from "../format";
 import { Field, NumInput, ThresholdFields, Toggle } from "../components/ui";
 import { beep } from "../sound";
 import { ask } from "../components/Dialogs";
+import { LicensePanel } from "../components/License";
 import { setLang, t } from "../i18n";
 import { THEMES, type ThemeDef } from "../theme";
 
-type TabKey = "general" | "theme" | "alerts" | "templates" | "data" | "updates" | "about";
+type TabKey = "general" | "theme" | "alerts" | "templates" | "data" | "updates" | "license" | "about";
 const TABS: { k: TabKey; l: string }[] = [
   { k: "general", l: "Общие" },
   { k: "theme", l: "Тема" },
@@ -19,13 +20,16 @@ const TABS: { k: TabKey; l: string }[] = [
   { k: "templates", l: "Шаблоны" },
   { k: "data", l: "Данные" },
   { k: "updates", l: "Обновления" },
+  { k: "license", l: "Лицензия" },
   { k: "about", l: "О программе" },
 ];
 
-export function SettingsPage({ toast, onImported, theme, onTheme }: { toast: (m: string, k?: string) => void; onImported: () => void; theme: string; onTheme: (id: string) => void }) {
+export function SettingsPage({ toast, onImported, theme, onTheme, tabReq, lic, onLicense }: { toast: (m: string, k?: string) => void; onImported: () => void; theme: string; onTheme: (id: string) => void; tabReq?: TabKey; lic: LicenseStatus | null; onLicense: (s: LicenseStatus) => void }) {
   const [tab, setTab] = useState<TabKey>(() => {
+    if (tabReq) return tabReq;
     try { return (localStorage.getItem("np.settingsTab") as TabKey) || "general"; } catch { return "general"; }
   });
+  useEffect(() => { if (tabReq) setTab(tabReq); }, [tabReq]);
   const setTabPersist = (t: TabKey) => { setTab(t); try { localStorage.setItem("np.settingsTab", t); } catch { /* */ } };
   const [log, setLog] = useState<string | null>(null);
   const [s, setS] = useState<Settings | null>(null);
@@ -256,7 +260,7 @@ export function SettingsPage({ toast, onImported, theme, onTheme }: { toast: (m:
           <Field label={t("Предупреждать об истечении SSL за, дней")} hint={t("0 — не проверять")}>
             <NumInput value={rules.certDays} min={0} max={365} onChange={(v) => setRules({ certDays: v })} />
           </Field>
-          {s.incidentControl && <Field label={t("Напоминать о невзятых инцидентах каждые, мин")} hint={t("0 — не напоминать; напоминание приходит ответом на сообщение инцидента")}>
+          {s.incidentControl && !!lic?.licensed && <Field label={t("Напоминать о невзятых инцидентах каждые, мин")} hint={t("0 — не напоминать; напоминание приходит ответом на сообщение инцидента")}>
             <NumInput value={rules.repeatMinutes} min={0} max={1440} onChange={(v) => setRules({ repeatMinutes: v })} />
           </Field>}
         </div>
@@ -273,7 +277,8 @@ export function SettingsPage({ toast, onImported, theme, onTheme }: { toast: (m:
         <h3>{t("Инциденты: когда и как сообщать")}</h3>
         <div className="desc">{t("Проблемы склеиваются в инциденты: падение площадки — один инцидент и одно сообщение, которое потом обновляется до восстановления.")}</div>
         <div className="field" style={{ margin: "4px 0 14px" }}>
-          <Toggle checked={s.incidentControl} onChange={(v) => setS({ ...s, incidentControl: v })} label={t("Контроль и отслеживание инцидентов")} />
+          <Toggle checked={s.incidentControl && !!lic?.licensed} disabled={!lic?.licensed} onChange={(v) => setS({ ...s, incidentControl: v })} label={t("Контроль и отслеживание инцидентов")} />
+          {lic && !lic.licensed && <small className="hint c-warn">{t("Доступно в полной версии — ключ вводится на вкладке «Лицензия».")}</small>}
           <small className="hint">{t("«Взять в работу», «никто не взял», тишина, отметка заявки, напоминания, кнопки и команды бота в Телеграме. Выключено — инциденты только объединяют уведомления: одно сообщение на аварию и отметка о восстановлении.")}</small>
         </div>
         <div className="form-grid three">
@@ -324,7 +329,7 @@ export function SettingsPage({ toast, onImported, theme, onTheme }: { toast: (m:
           <Field label={t("Токен бота")}><input className="input num" type="password" value={ch.telegram.botToken} onChange={(e) => setCh({ telegram: { ...ch.telegram, botToken: e.target.value.trim() } })} placeholder="123456:ABC-DEF…" /></Field>
           <Field label="Chat ID"><input className="input num" value={ch.telegram.chatId} onChange={(e) => setCh({ telegram: { ...ch.telegram, chatId: e.target.value.trim() } })} placeholder="-1001234567890" /></Field>
         </div>
-        {s.incidentControl && <div style={{ marginTop: 14, display: "grid", gap: 6 }}>
+        {s.incidentControl && !!lic?.licensed && <div style={{ marginTop: 14, display: "grid", gap: 6 }}>
           <Toggle checked={ch.telegram.interactive} onChange={(v) => setCh({ telegram: { ...ch.telegram, interactive: v } })} label={t("Этот компьютер отвечает на кнопки и команды бота")} />
           <small className="hint" style={{ color: "var(--muted)", fontSize: 11.5 }}>{t("Кнопки «Беру», «Тишина 1 ч», «Заявка» под сообщениями и команды /status, /who работают, пока запущена эта программа. Если NetPulse стоит на нескольких компьютерах с одним ботом, включите это только на одном.")}</small>
         </div>}
@@ -560,6 +565,8 @@ export function SettingsPage({ toast, onImported, theme, onTheme }: { toast: (m:
 
         </>
       )}
+
+      {tab === "license" && <LicensePanel lic={lic} onLicense={onLicense} toast={toast} />}
 
       {tab === "about" && (
         <>

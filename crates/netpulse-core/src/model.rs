@@ -472,8 +472,23 @@ pub struct Settings {
     /// Контроль и отслеживание инцидентов: «взять в работу», заявки, тишина, напоминания,
     /// кнопки и команды бота. Выключено — инциденты только группируют уведомления.
     pub incident_control: bool,
+    /// Вид дашборда: mosaic (мозаика), rings (кольца), rows (строки).
+    pub wallboard_view: String,
+    /// Ключ лицензии (пусто — бесплатная версия). Меняется только через activate_license.
+    pub license_key: String,
     /// Шаблоны настроек целей.
     pub templates: Vec<TargetTemplate>,
+}
+
+impl Settings {
+    /// Полная версия: введён действующий ключ.
+    pub fn licensed(&self) -> bool {
+        crate::license::key_valid(&self.license_key)
+    }
+    /// Контроль инцидентов включён и доступен по лицензии.
+    pub fn control_on(&self) -> bool {
+        self.incident_control && self.licensed()
+    }
 }
 
 impl Default for Settings {
@@ -494,6 +509,8 @@ impl Default for Settings {
             duty_contact: String::new(),
             sla_target: 99.9,
             incident_control: false,
+            wallboard_view: "mosaic".into(),
+            license_key: String::new(),
             templates: default_templates(),
         }
     }

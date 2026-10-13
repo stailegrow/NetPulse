@@ -14,6 +14,32 @@ import type { Diagnosis, Finding,
   TraceView,
 } from "./types";
 import { defaultTarget, defaultTemplates } from "./types";
+import pkg from "../package.json";
+
+// Режим скриншотов (?shots): ни одного IP-адреса и личного имени в интерфейсе.
+export const SHOTS = typeof location !== "undefined" && location.search.includes("shots");
+const ipNames = new Map<string, string>([["192.168.1.1", "gw.office.lan"], ["192.168.1.50", "this-pc.office.lan"]]);
+const ipName = (ip: string) => {
+  if (!ipNames.has(ip)) ipNames.set(ip, `node-${ipNames.size + 1}.example.net`);
+  return ipNames.get(ip)!;
+};
+const scrubStr = (v: string) =>
+  v
+    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\/\d{1,2}\b/g, "office-lan")
+    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, ipName)
+    .replace(/\b(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\b/gi, "—")
+    .replace(/Андрей/g, "Дежурный");
+export function scrub<T>(v: T): T {
+  if (!SHOTS) return v;
+  if (typeof v === "string") return scrubStr(v) as T;
+  if (Array.isArray(v)) return v.map(scrub) as T;
+  if (v && typeof v === "object") {
+    const o: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v)) o[k] = scrub(x);
+    return o as T;
+  }
+  return v;
+}
 import type { DowntimeProfile, Incident, IncidentPayload, Operator, TargetOperator, TicketDraft } from "./types";
 
 // ---------------------------------------------------------------- демо: операторы и инциденты
@@ -144,6 +170,34 @@ const seedTargets: Array<Partial<Target> & { p: Profile }> = [
   { name: "IP-телефония", host: "203.0.113.20", kind: "trace", group: "Сервисы", p: { base: 24, hops: 6, noisyHop: 0, incident: true, down: false } },
 ];
 
+// Лицензия: в демо ключ введён; адрес ?free — бесплатная версия.
+let licKey = typeof location !== "undefined" && location.search.includes("free") ? "" : "DEMO-••••-••••-0000";
+const licStatus = () => ({ licensed: !!licKey, key: licKey, targetLimit: 10, targets: targets.length });
+const fnv = (str: string) => {
+  let h = 0xcbf29ce484222325n;
+  for (const b of new TextEncoder().encode(str)) { h ^= BigInt(b); h = (h * 0x100000001b3n) & 0xffffffffffffffffn; }
+  return h;
+};
+async function keyOk(key: string) {
+  const n = key.replace(/[^0-9a-z]/gi, "").toUpperCase();
+  if (n.length !== 16) return false;
+  const k = "netpulse/license/v1:" + n;
+  let h = fnv(k);
+  for (let i = 0; i < 1000; i++) h = fnv("0x" + h.toString(16) + k);
+  return h === 0xe3ef1cb8f5ecfaf3n;
+}
+
+// Демо большой сети (для проверки табло): адрес ?many — 17 групп, ~140 узлов.
+if (typeof location !== "undefined" && location.search.includes("many")) {
+  const sizes = [38, 30, 22, 12, 6, 6, 6, 5, 5, 4, 4, 4, 3, 3, 3, 2, 1];
+  sizes.forEach((n, g) => {
+    for (let k = 0; k < n; k++) {
+      const bad = (g * 31 + k * 7) % 53 === 0;
+      seedTargets.push({ name: `Узел ${g + 1}-${k + 1}`, host: `192.0.2.${(g * 13 + k) % 250}`, kind: "ping", group: `Группа ${g + 1}`, p: { base: 3 + ((g * 7 + k) % 40), hops: 0, noisyHop: 0, incident: bad, down: (g * 17 + k) % 89 === 5 } });
+    }
+  });
+}
+
 const profiles = new Map<string, Profile>();
 let groups: string[] = ["Общее", "Сервисы", "Площадка 1", "Интернет", "Дата-центры"];
 function applyTpl(t: Target) {
@@ -199,6 +253,7 @@ let settings: Settings = {
   dutyContact: "+7 900 000-00-00",
   slaTarget: 99.9,
   incidentControl: false,
+  wallboardView: "mosaic",
   templates: defaultTemplates(),
 };
 
@@ -437,8 +492,16 @@ export const mock = {
         setTimeout(() => incListeners.forEach((l) => l({ notice, sound: false })), 300);
         return "Пример отправлен в Телеграм и показан на компьютере.";
       }
+      case "license_status": return licStatus();
+      case "activate_license": {
+        if (!(await keyOk(String(a.key)))) throw "ключ не подходит — проверьте, что он введён без ошибок";
+        const n = String(a.key).replace(/[^0-9a-z]/gi, "").toUpperCase();
+        licKey = `${n.slice(0, 4)}-••••-••••-${n.slice(-4)}`;
+        return licStatus();
+      }
+      case "deactivate_license": licKey = ""; return licStatus();
       case "engine_info":
-        return { icmpMode: "демо-режим (браузер)", icmpError: null, supportsTrace: true, version: "1.0.19", dataDir: "—", logPath: "—", dbWarning: null };
+        return { icmpMode: "демо-режим (браузер)", icmpError: null, supportsTrace: true, version: pkg.version, dataDir: "—", logPath: "—", dbWarning: null };
       case "list_targets": return structuredClone(targets);
       case "list_groups": {
         for (const t of targets) if (!groups.includes(t.group)) groups.push(t.group);
@@ -487,6 +550,7 @@ export const mock = {
         if (!t.name.trim()) t.name = t.host;
         applyTpl(t);
         if (!t.id) {
+          if (!licKey && targets.length >= 10) throw "в бесплатной версии можно следить не больше чем за 10 узлами — введите ключ в Настройках → Лицензия";
           t.id = `demo-${Date.now()}-${Math.round(Math.random() * 1e4)}`;
           profiles.set(t.id, { base: 10 + Math.random() * 60, hops: t.kind === "trace" ? 6 + Math.round(Math.random() * 8) : 0, noisyHop: 3, incident: false, down: false });
           targets.push(t);

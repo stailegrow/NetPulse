@@ -226,6 +226,8 @@ export interface Settings {
   slaTarget: number;
   /** Контроль и отслеживание инцидентов: взять в работу, тишина, заявки, напоминания, кнопки бота. */
   incidentControl: boolean;
+  /** Вид дашборда: mosaic, rings, rows. */
+  wallboardView: string;
   templates: TargetTemplate[];
 }
 
@@ -267,6 +269,14 @@ export interface HeatCell { dow: number; hour: number; avg: number | null; lossP
 export interface HopSeries { ttl: number; addr: string | null; hostname: string | null; points: TimelinePoint[] }
 
 export interface UpdateInfo { version: string; current: string; notes: string | null; date: string | null }
+
+export interface LicenseStatus {
+  licensed: boolean;
+  /** Ключ со скрытой серединой. */
+  key: string;
+  targetLimit: number;
+  targets: number;
+}
 
 export interface EngineInfo {
   icmpMode: string | null;

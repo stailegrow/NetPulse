@@ -92,6 +92,16 @@ struct Runner {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LicenseStatus {
+    pub licensed: bool,
+    /// Ключ со скрытой серединой (пусто в бесплатной версии).
+    pub key: String,
+    pub target_limit: usize,
+    pub targets: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EngineInfo {
     pub icmp_mode: Option<String>,
     pub icmp_error: Option<String>,
@@ -407,6 +417,15 @@ impl Monitor {
             t.parent_id = None;
         }
         self.apply_template(&mut t);
+        if !self.runners.read().contains_key(&t.id)
+            && !self.settings.read().licensed()
+            && self.order.read().len() >= crate::license::FREE_TARGET_LIMIT
+        {
+            return Err(anyhow!(
+                "в бесплатной версии можно следить не больше чем за {} узлами — введите ключ в Настройках → Лицензия",
+                crate::license::FREE_TARGET_LIMIT
+            ));
+        }
         if let Some(p) = t.parent_id.clone() {
             if p == t.id {
                 return Err(anyhow!("цель не может зависеть сама от себя"));
@@ -650,10 +669,43 @@ impl Monitor {
         for tp in s.templates.iter_mut().rev() {
             tp.groups.retain(|g| !g.trim().is_empty() && seen.insert(g.clone()));
         }
+        // Ключ меняется только через activate_license / deactivate_license.
+        s.license_key = self.settings.read().license_key.clone();
         self.storage.save_settings(&s)?;
         *self.settings.write() = s;
         self.sync_templates()?;
         Ok(())
+    }
+
+    /// Ввести ключ лицензии. Неверный ключ — ошибка, сохранённый не трогаем.
+    pub fn activate_license(&self, key: &str) -> Result<()> {
+        if !crate::license::key_valid(key) {
+            return Err(anyhow!("ключ не подходит — проверьте, что он введён без ошибок"));
+        }
+        let mut s = self.settings();
+        s.license_key = crate::license::normalize(key);
+        self.storage.save_settings(&s)?;
+        *self.settings.write() = s;
+        Ok(())
+    }
+
+    /// Убрать ключ с этого компьютера — программа вернётся к бесплатной версии.
+    pub fn deactivate_license(&self) -> Result<()> {
+        let mut s = self.settings();
+        s.license_key.clear();
+        self.storage.save_settings(&s)?;
+        *self.settings.write() = s;
+        Ok(())
+    }
+
+    pub fn license_status(&self) -> LicenseStatus {
+        let s = self.settings.read();
+        LicenseStatus {
+            licensed: s.licensed(),
+            key: if s.licensed() { crate::license::mask(&s.license_key) } else { String::new() },
+            target_limit: crate::license::FREE_TARGET_LIMIT,
+            targets: self.order.read().len(),
+        }
     }
 
     /// Подставляет в цель значения её шаблона; если шаблон удалён — отвязывает.
@@ -1961,6 +2013,7 @@ impl Monitor {
         settings.channels.telegram.bot_token.clear();
         settings.channels.email.password.clear();
         settings.channels.webhook.url.clear();
+        settings.license_key.clear();
         ConfigBundle {
             app: "NetPulse".into(),
             version: 1,

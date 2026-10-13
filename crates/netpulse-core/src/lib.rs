@@ -5,6 +5,7 @@ pub mod alerts;
 pub mod analyze;
 pub mod checks;
 pub mod incidents;
+pub mod license;
 pub mod logging;
 pub mod model;
 pub mod monitor;

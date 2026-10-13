@@ -7,6 +7,7 @@ import type {
   ReportRow,
   UpdateInfo,
   EngineInfo,
+  LicenseStatus,
   EventRecord,
   Settings,
   Target,
@@ -25,18 +26,21 @@ import type {
   TicketDraft,
   DowntimeProfile,
 } from "./types";
-import { mock } from "./mock";
+import { mock, scrub } from "./mock";
 
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  if (!isTauri) return mock.invoke(cmd, args) as Promise<T>;
+  if (!isTauri) return mock.invoke(cmd, args).then(scrub) as Promise<T>;
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<T>(cmd, args);
 }
 
 export const api = {
   engineInfo: () => call<EngineInfo>("engine_info"),
+  licenseStatus: () => call<LicenseStatus>("license_status"),
+  activateLicense: (key: string) => call<LicenseStatus>("activate_license", { key }),
+  deactivateLicense: () => call<LicenseStatus>("deactivate_license"),
   listTargets: () => call<Target[]>("list_targets"),
   saveTarget: (target: Target) => call<Target>("save_target", { target }),
   saveTargets: (targets: Target[]) => call<number>("save_targets", { targets }),
@@ -152,13 +156,13 @@ export const api = {
   },
 
   async onIncident(cb: (p: IncidentPayload) => void): Promise<() => void> {
-    if (!isTauri) return mock.onIncident(cb);
+    if (!isTauri) return mock.onIncident((p) => cb(scrub(p)));
     const { listen } = await import("@tauri-apps/api/event");
     return listen<IncidentPayload>("incident", (e) => cb(e.payload));
   },
 
   async onAlert(cb: (p: AlertPayload) => void): Promise<() => void> {
-    if (!isTauri) return mock.onAlert(cb);
+    if (!isTauri) return mock.onAlert((p) => cb(scrub(p)));
     const { listen } = await import("@tauri-apps/api/event");
     return listen<AlertPayload>("alert", (e) => cb(e.payload));
   },

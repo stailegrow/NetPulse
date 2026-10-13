@@ -6,6 +6,7 @@ import { problemText, sinceText, trend, TREND_TEXT, isProblem } from "../problem
 import { Icon } from "../components/ui";
 import { api } from "../api";
 import { t } from "../i18n";
+import { WbBento, WbConsole, WbOverview } from "../components/WallViews";
 
 /** Сколько проблем помещается на страницу: больше на читаемом размере не влезает. */
 const PER_PAGE = 3;
@@ -21,6 +22,14 @@ const SIZES = [
   { k: "xl", l: "Очень крупно", v: 0.85 },
 ] as const;
 const MAX_SIZE = SIZES[SIZES.length - 1].v;
+/** Виды дашборда. Мозаика — основной. */
+const VIEWS = [
+  { k: "mosaic", l: "Мозаика", icon: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" },
+  { k: "console", l: "Пульт дежурного", icon: "M3 4h18v12H3zM8 20h8M12 16v4M6 8h5M6 11h8M16 8h2" },
+  { k: "overview", l: "Обзор", icon: "M4 15a8 8 0 1 1 16 0M12 15l4-5M3 20h18" },
+  { k: "bento", l: "Бенто", icon: "M3 3h8v10H3zM13 3h8v6h-8zM13 11h8v10h-8zM3 15h8v6H3z" },
+] as const;
+type ViewKey = (typeof VIEWS)[number]["k"];
 
 function load<T>(k: string, d: T): T {
   try { const v = localStorage.getItem(k); return v == null ? d : (JSON.parse(v) as T); } catch { return d; }
@@ -60,6 +69,15 @@ export function Wallboard({ items, onOpen, onExit, kiosk, onKiosk }: {
   const [paused, setPaused] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
   const [cell, setCell] = useState(22);
+  const [view, setViewState] = useState<ViewKey>(() => { const v = load<string>("np.wbView", "mosaic"); return (VIEWS.some((x) => x.k === v) ? v : "mosaic") as ViewKey; });
+  useEffect(() => {
+    api.settings().then((s) => { const v = s.wallboardView as ViewKey; if (VIEWS.some((x) => x.k === v)) { setViewState(v); save("np.wbView", v); } }).catch(() => {});
+  }, []);
+  const setView = (v: ViewKey) => {
+    setViewState(v);
+    save("np.wbView", v);
+    api.settings().then((s) => api.saveSettings({ ...s, wallboardView: v })).catch(() => {});
+  };
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -166,9 +184,9 @@ export function Wallboard({ items, onOpen, onExit, kiosk, onKiosk }: {
     const ro = new ResizeObserver(() => { if (first) { first = false; return; } restart(); });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [view]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { restart(); }, [groups.length, items.length, size]);
+  useEffect(() => { restart(); }, [groups.length, items.length, size, view]);
   useEffect(() => {
     const el = mapRef.current;
     if (!el || !probe || el.clientHeight < 40) return;
@@ -212,7 +230,7 @@ export function Wallboard({ items, onOpen, onExit, kiosk, onKiosk }: {
           <div className="wb-hs">{head.s}</div>
         </div>
         <div className="wb-tools">
-          {pages > 1 && <div className="wb-pager">{t("страница")} {page + 1}/{pages} · {t("ещё")} {cards.length - shown.length}</div>}
+          {view === "mosaic" && pages > 1 && <div className="wb-pager">{t("страница")} {page + 1}/{pages} · {t("ещё")} {cards.length - shown.length}</div>}
           <div className="chips">
             {SIZES.map((x) => (
               <button key={x.k} className={Math.abs(size - x.v) < 0.01 ? "on" : ""} title={t("Крупность текста и мозаики")}
@@ -220,17 +238,30 @@ export function Wallboard({ items, onOpen, onExit, kiosk, onKiosk }: {
             ))}
           </div>
           <button className="btn" onClick={toggleKiosk}>{kiosk ? t("Выйти (Esc)") : t("На весь экран")}</button>
-          {!kiosk && <button className="btn ghost" onClick={onExit}><Icon name="back" size={13} />{t("К списку")}</button>}
+          <div className="wb-row">
+            <div className="wb-views" role="tablist" aria-label={t("Вид дашборда")}>
+              {VIEWS.map((v) => (
+                <button key={v.k} className={view === v.k ? "on" : ""} title={t(v.l)} aria-label={t(v.l)} onClick={() => setView(v.k)}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={v.icon} /></svg>
+                </button>
+              ))}
+            </div>
+            {!kiosk && <button className="btn ghost" onClick={onExit}><Icon name="back" size={13} />{t("К списку")}</button>}
+          </div>
         </div>
       </div>
 
-      {cards.length > 0 && (
+      {view === "console" && <WbConsole active={active} groups={groups} now={now.getTime()} onOpen={onOpen} />}
+      {view === "overview" && <WbOverview active={active} groups={groups} now={now.getTime()} onOpen={onOpen} />}
+      {view === "bento" && <WbBento active={active} groups={groups} now={now.getTime()} onOpen={onOpen} />}
+
+      {view === "mosaic" && cards.length > 0 && (
         <div className="wb-probs" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
           {shown.map((c) => <ProblemCard key={c.key} c={c} now={now.getTime()} onOpen={onOpen} />)}
         </div>
       )}
 
-      <div className="wb-map" ref={mapRef} style={{ ["--cell" as string]: cell + "px", ["--gap" as string]: Math.max(3, Math.round(cell * 0.26)) + "px" }}>
+      {view === "mosaic" && <div className="wb-map" ref={mapRef} style={{ ["--cell" as string]: cell + "px", ["--gap" as string]: Math.max(3, Math.round(cell * 0.26)) + "px" }}>
         {groups.map(([g, list]) => {
           const hit = list.some((x) => isProblem(x.health));
           const cols = Math.min(list.length, list.length > 12 ? 6 : list.length > 6 ? 5 : 4);
@@ -246,7 +277,7 @@ export function Wallboard({ items, onOpen, onExit, kiosk, onKiosk }: {
             </div>
           );
         })}
-      </div>
+      </div>}
     </div>
   );
 }
