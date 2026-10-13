@@ -14,33 +14,48 @@ Copyright (c) 2026 StaileGroW. Все права защищены. / All rights 
 2. Исходный код опубликован исключительно для ознакомления (просмотра).
    Публикация кода не является предоставлением какой-либо лицензии или
    права на использование, кроме права просматривать его на сайте GitHub.
+   Открытость кода не означает, что его можно использовать: на код
+   распространяются все ограничения этого документа.
 
 3. Без предварительного письменного разрешения правообладателя ЗАПРЕЩЕНО:
-   а) копировать, воспроизводить и распространять Продукт или его части;
+   а) копировать, воспроизводить и распространять Продукт или его части,
+      в том числе фрагменты исходного кода;
    б) изменять Продукт, создавать производные работы, форки для
       использования, переименованные или ребрендированные версии;
    в) компилировать, собирать и распространять сборки из этого кода;
    г) декомпилировать, дизассемблировать, извлекать ресурсы, применять
-      иные методы обратной разработки к сборкам Продукта (в том числе APK
-      и .app), а также изменять и переподписывать их;
-   д) копировать или имитировать визуальный стиль Продукта: кнопки,
-      анимации, фон, компоновку экранов, цветовые темы, логотипы и
-      названия, создавать визуальные клоны;
-   е) использовать Продукт или его части для обучения, продажи, сдачи в
-      аренду, сублицензирования или в составе других продуктов.
+      иные методы обратной разработки к сборкам Продукта (в том числе
+      .exe, .app и .dmg), а также изменять и переподписывать их;
+   д) удалять, отключать или обходить проверку ключа лицензии и
+      ограничения бесплатной версии, создавать и распространять
+      генераторы ключей, «патчи» и изменённые сборки;
+   е) копировать или имитировать визуальный стиль Продукта: кнопки,
+      анимации, фон, компоновку экранов, дашборды, цветовые темы,
+      логотипы и названия, создавать визуальные клоны;
+   ж) использовать Продукт или его части для создания аналогичного или
+      конкурирующего продукта, для обучения систем искусственного
+      интеллекта, для продажи, сдачи в аренду, сублицензирования или в
+      составе других продуктов.
 
-4. Продукт предоставляется «как есть», без каких-либо гарантий.
+4. Использование готового приложения регулируется файлом EULA.md:
+   некоммерческое использование — бесплатно, коммерческое использование
+   (в организациях и в деятельности, приносящей доход) — только по
+   коммерческой лицензии с ключом.
+
+5. Продукт предоставляется «как есть», без каких-либо гарантий.
    Правообладатель не несёт ответственности за любой ущерб, возникший в
    связи с использованием Продукта.
 
-5. Условия использования готового приложения конечными пользователями
-   изложены в файле EULA.md.
+6. Нарушение этих условий является нарушением исключительного права
+   правообладателя и влечёт ответственность, предусмотренную
+   законодательством Российской Федерации, в том числе требование
+   компенсации.
 
-6. Сторонние компоненты распространяются на условиях своих собственных
+7. Сторонние компоненты распространяются на условиях своих собственных
    лицензий и не подпадают под действие этого документа (см. раздел
    «Сторонние компоненты» ниже).
 
-7. По вопросам лицензирования обращайтесь к правообладателю через
+8. По вопросам лицензирования обращайтесь к правообладателю через
    GitHub: https://github.com/stailegrow
 
 ======================================================================
@@ -53,30 +68,43 @@ ENGLISH
 
 2. The source code is published for viewing only. Publication does not
    grant any licence or right of use other than viewing it on GitHub.
+   Visible source does not mean usable source: all restrictions of this
+   document apply to the code.
 
 3. Without the copyright holder's prior written permission you may NOT:
-   a) copy, reproduce or distribute the Product or any part of it;
+   a) copy, reproduce or distribute the Product or any part of it,
+      including fragments of the source code;
    b) modify the Product, create derivative works, forks for use, renamed
       or rebranded versions;
    c) compile, build or distribute builds made from this code;
    d) decompile, disassemble, extract resources from, or otherwise reverse
-      engineer builds of the Product (including APK and .app), or modify
-      and re-sign them;
-   e) copy or imitate the Product's visual style — buttons, animations,
-      backgrounds, screen layouts, colour themes, logos and names — or
-      create visual clones;
-   f) use the Product or any part of it for training, sale, rental,
-      sublicensing, or as part of other products.
+      engineer builds of the Product (including .exe, .app and .dmg), or
+      modify and re-sign them;
+   e) remove, disable or bypass the licence key check or the limitations
+      of the free edition, or create and distribute key generators,
+      patches and modified builds;
+   f) copy or imitate the Product's visual style — buttons, animations,
+      backgrounds, screen layouts, dashboards, colour themes, logos and
+      names — or create visual clones;
+   g) use the Product or any part of it to create a similar or competing
+      product, to train artificial intelligence systems, or for sale,
+      rental, sublicensing, or as part of other products.
 
-4. THE PRODUCT IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. The
+4. Use of the finished application is governed by EULA.md: non-commercial
+   use is free; commercial use (within organisations and in any
+   income-generating activity) requires a commercial licence key.
+
+5. THE PRODUCT IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. The
    copyright holder is not liable for any damage arising from its use.
 
-5. Terms for end users of the finished application are set out in EULA.md.
+6. Breach of these terms infringes the copyright holder's exclusive rights
+   and gives rise to liability under the laws of the Russian Federation,
+   including claims for compensation.
 
-6. Third-party components are governed by their own licences and are not
+7. Third-party components are governed by their own licences and are not
    covered by this document (see "Third-party components" below).
 
-7. Licensing enquiries: https://github.com/stailegrow
+8. Licensing enquiries: https://github.com/stailegrow
 
 ======================================================================
 Сторонние компоненты / Third-party components
